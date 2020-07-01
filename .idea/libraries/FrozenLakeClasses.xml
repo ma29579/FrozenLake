@@ -1,7 +1,7 @@
 <component name="libraryTable">
   <library name="FrozenLakeClasses">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/../FrozenLakeClasses.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/FrozenLakeClasses.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />
