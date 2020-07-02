@@ -1,6 +1,7 @@
 package frozenlake;
 
 import frozenlake.pfadfinder.IPfadfinder;
+import frozenlake.pfadfinder.enheth.Pfadfinder;
 
 public class SeeSimulator {
 	
@@ -11,10 +12,13 @@ public class SeeSimulator {
 		//IPfadfinder joe = new frozenlake.pfadfinder.priemer.Pfadfinder(); //Hier muss eine konkrete Implementierung hin!
 		IPfadfinder joe = null;
 
-		See testsee = new See("Testsee",10, new Koordinate(0,0), new Koordinate(9,9));
+		See testsee = new See("Testsee",8, new Koordinate(0,0), new Koordinate(7,7));
 		testsee.wegErzeugen();
 		testsee.speichereSee("Testsee");
-		
+
+		Pfadfinder test = new Pfadfinder();
+		test.lerneSee(testsee,true,false,false);
+
 		//Trainieren mit QMatrix, ohne NN, OffPolicy
 		joe.lerneSee(testsee, true, false, true);
 		
