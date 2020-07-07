@@ -4,6 +4,10 @@ import frozenlake.Koordinate;
 import frozenlake.Richtung;
 import frozenlake.See;
 import frozenlake.Zustand;
+import org.neuroph.core.data.DataSet;
+import org.neuroph.core.data.DataSetRow;
+import org.neuroph.nnet.MultiLayerPerceptron;
+import org.neuroph.util.TransferFunctionType;
 
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
@@ -16,6 +20,12 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
     double rewardSchritt = -1;
     double rewardWasser = -100;
     double rewardZiel = 100;
+    Koordinate aktuelleSpielerPosition;
+    MultiLayerPerceptron multiLayerPerceptron;
+
+    boolean stateValue;
+    boolean neuralesNetz;
+    boolean onPolicy;
 
     @Override
     public String meinName() {
@@ -24,6 +34,12 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
     @Override
     public boolean lerneSee(See see, boolean stateValue, boolean neuronalesNetz, boolean onPolicy) {
+
+        this.stateValue = stateValue;
+        this.neuralesNetz = neuronalesNetz;
+        this.onPolicy = onPolicy;
+
+        aktuelleSpielerPosition = see.spielerPosition();
 
         //Aufgabe a
         if (stateValue && !neuronalesNetz) {
@@ -50,14 +66,69 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
         //Aufgabe b
         else if (stateValue && neuronalesNetz) {
 
+            DataSet trainingSet = new DataSet(see.getGroesse()*see.getGroesse(),1);
 
-            if (onPolicy) {
+            Koordinate aktuellePosition = see.spielerPosition();
+            Koordinate besterNachfolger = null;
 
+            do{
+
+                aktuellePosition = sucheBestesFeld(aktuellePosition);
+                besterNachfolger = sucheBestesFeld(aktuellePosition);
+
+                double r;
+
+                if (aktuellePosition == null)
+                    break;
+
+                double vsResult = 0;
+
+                Zustand aktuellerZustand = see.zustandAn(aktuellePosition);
+
+                if (aktuellerZustand == Zustand.Ziel) {
+                    vsResult = rewardZiel;
+                    break;
+                } else if (aktuellerZustand == Zustand.UWasser || aktuellerZustand == Zustand.Wasser) {
+                    vsResult = rewardWasser;
+                    break;
+                } else
+                    vsResult = (1 - lernrate) * seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] + diskontfaktor * lernrate * (seeBewertungen[besterNachfolger.getZeile()][besterNachfolger.getSpalte()] + rewardSchritt);
+
+
+                double[] zustand = new double[see.getGroesse()*see.getGroesse()];
+                for(int zeile = 0; zeile < see.getGroesse(); zeile++){
+                    for(int spalte = 0; spalte < see.getGroesse(); spalte++){
+
+                        if(aktuellePosition.getSpalte() == spalte && aktuellePosition.getZeile() == zeile)
+                            zustand[zeile*see.getGroesse()+spalte] = 1;
+                        else
+                            zustand[zeile*see.getGroesse()+spalte] = 0;
+                    }
+                }
+                trainingSet.addRow(new DataSetRow(zustand,new double[]{vsResult}));
+
+            }while (true);
+
+
+            for(int zeile = 0; zeile < see.getGroesse(); zeile++){
+                for(int spalte = 0; spalte < see.getGroesse(); spalte++){
+
+
+                }
             }
+            multiLayerPerceptron = new MultiLayerPerceptron(TransferFunctionType.TANH, see.getGroesse()*see.getGroesse(), see.getGroesse()*see.getGroesse(), 1);
+            multiLayerPerceptron.getLearningRule().setMaxError(0.00000001d);
+            multiLayerPerceptron.learn(trainingSet);
+
 
         }
 
         return false;
+    }
+
+    private double berechneMaxNachfolgerNN(int zustand){
+
+        return 0;
     }
 
     private void lerneSeeStateValueOffPolicy(See see){
@@ -94,7 +165,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
     private void lerneSeeStateValueOnPolicy(See see) {
 
-        for (int durchgang = 0; durchgang < 100; durchgang++) {
+        for (int durchgang = 0; durchgang < 10; durchgang++) {
 
             Koordinate aktuellePosition = see.spielerPosition();
             Koordinate besterNachfolger = null;
@@ -214,18 +285,58 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
     @Override
     public boolean starteUeberquerung(See see, boolean stateValue, boolean neuronalesNetz, boolean onPolicy) {
-        //TODO Hier sind Sie gefragt
+
+        aktuelleSpielerPosition = see.spielerPosition();
+
+        //Aufgabe a
+        if (stateValue && !neuronalesNetz) {
+
+
+            if (onPolicy) {
+                //On-Policy
+                lerneSeeStateValueOnPolicy(see);
+            } else {
+                //Off-Policy
+                lerneSeeStateValueOffPolicy(see);
+            }
+
+        }
+        //Aufgabe b
+        else if (stateValue && neuronalesNetz) {
+
+
+            if (onPolicy) {
+
+            }
+
+        }
+
         return false;
     }
 
     @Override
     public Richtung naechsterSchritt(Zustand ausgangszustand) {
-        //TODO Hier sind Sie gefragt
+
+        if(stateValue && !neuralesNetz){
+
+           Koordinate bestesFeld = sucheBestesFeld(aktuelleSpielerPosition);
+
+           if(bestesFeld.getZeile() < aktuelleSpielerPosition.getZeile())
+               return Richtung.HOCH;
+           else if(bestesFeld.getZeile() > aktuelleSpielerPosition.getZeile())
+               return Richtung.RUNTER;
+           else if(bestesFeld.getSpalte() > aktuelleSpielerPosition.getSpalte())
+               return Richtung.RECHTS;
+           else if(bestesFeld.getSpalte() < aktuelleSpielerPosition.getSpalte())
+               return Richtung.LINKS;
+
+        }
+
         return null;
     }
 
     @Override
     public void versuchZuende(Zustand endzustand) {
-        //TODO Hier sind Sie gefragt
+        System.out.println("Schade");
     }
 }
