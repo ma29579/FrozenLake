@@ -4,9 +4,7 @@ import frozenlake.Koordinate;
 import frozenlake.Richtung;
 import frozenlake.See;
 import frozenlake.Zustand;
-import org.apache.commons.lang3.tuple.Pair;
 import org.neuroph.core.data.DataSet;
-import org.neuroph.core.data.DataSetRow;
 import org.neuroph.core.transfer.Linear;
 import org.neuroph.nnet.MultiLayerPerceptron;
 import org.neuroph.util.TransferFunctionType;
@@ -70,12 +68,12 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
             multiLayerPerceptron = new MultiLayerPerceptron(TransferFunctionType.TANH, see.getGroesse()*see.getGroesse(), see.getGroesse()*see.getGroesse(), 1);
             multiLayerPerceptron.getOutputNeurons()[0].setTransferFunction(new Linear());
-            multiLayerPerceptron.getLearningRule().setMaxError(0.0001d);
+            multiLayerPerceptron.getLearningRule().setMaxError(0.01d);
 
             for(int episode = 0; episode < 10; episode++){
 
                 DataSet trainingSet = new DataSet(see.getGroesse()*see.getGroesse(),1);
-                Set<Koordinate> besuchteKoordinaten = new LinkedHashSet<>();
+                ArrayList<Koordinate> besuchteKoordinaten = new ArrayList<>();
                 Koordinate aktuellePosition = see.spielerPosition();
                 Zustand aktuellerZustand = see.zustandAn(aktuellePosition);
 
@@ -83,6 +81,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
                 while(true){
                     double reward = 0;
                     double[] inputNeuronen = new double[see.getGroesse()*see.getGroesse()];
+                    besuchteKoordinaten.add(aktuellePosition);
 
                     if (aktuellerZustand == Zustand.Ziel) {
                         inputNeuronen[aktuellePosition.getZeile()+aktuellePosition.getSpalte()*see.getGroesse()] = 1;
@@ -95,6 +94,10 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
                     } else {
 
                         Koordinate besteKoordinate = berechneMaxNachfolgerNN(aktuellePosition,see, besuchteKoordinaten);
+
+                        if(besteKoordinate == null)
+                            break;
+
                         double[] inputBesterNachfolger = new double[see.getGroesse()*see.getGroesse()];
                         double[] inputAktuellePosition = new double[see.getGroesse()*see.getGroesse()];
                         inputAktuellePosition[aktuellePosition.getZeile()*see.getGroesse()+aktuellePosition.getSpalte()] = 1;
@@ -115,6 +118,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
                         trainingSet.addRow(inputNeuronen, new double[]{(1 - lernrate) * aktuelleBewertung + diskontfaktor * lernrate * (besteBewertung + rewardSchritt)});
 
                         aktuellePosition = besteKoordinate;
+                        aktuellerZustand = see.zustandAn(aktuellePosition);
                     }
                 }
 
@@ -154,7 +158,18 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
         return false;
     }
 
-    private Koordinate berechneMaxNachfolgerNN(Koordinate aktuelleKoordinate, See see, Set<Koordinate> besuchteKoordinaten){
+    private boolean koordinateNochNichtBenutzt(Koordinate aktuelleKoordinate, ArrayList<Koordinate> besuchteKoordinaten){
+
+        for(Koordinate k : besuchteKoordinaten){
+
+            if(aktuelleKoordinate.getSpalte() == k.getSpalte() && aktuelleKoordinate.getZeile() == k.getZeile())
+                return false;
+        }
+
+        return true;
+    }
+
+    private Koordinate berechneMaxNachfolgerNN(Koordinate aktuelleKoordinate, See see, ArrayList<Koordinate> besuchteKoordinaten){
 
         double besteBewertung = -Double.MAX_VALUE;
         Koordinate besteKoordinate = null;
@@ -165,7 +180,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
         double[] inputNeuronen = new double[see.getGroesse()*see.getGroesse()];
 
-        if (linkesFeld.getSpalte() >= 0 && !besuchteKoordinaten.contains(linkesFeld)) {
+        if (linkesFeld.getSpalte() >= 0 && koordinateNochNichtBenutzt(linkesFeld,besuchteKoordinaten)) {
             inputNeuronen[linkesFeld.getZeile()*see.getGroesse()+linkesFeld.getSpalte()] = 1;
             multiLayerPerceptron.setInput(inputNeuronen);
             multiLayerPerceptron.calculate();
@@ -179,7 +194,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
         Arrays.fill(inputNeuronen,0);
 
-        if (rechtesFeld.getSpalte() < see.getGroesse() && !besuchteKoordinaten.contains(rechtesFeld)) {
+        if (rechtesFeld.getSpalte() < see.getGroesse() && koordinateNochNichtBenutzt(rechtesFeld,besuchteKoordinaten)) {
             inputNeuronen[rechtesFeld.getZeile()*see.getGroesse()+rechtesFeld.getSpalte()] = 1;
             multiLayerPerceptron.setInput(inputNeuronen);
             multiLayerPerceptron.calculate();
@@ -193,7 +208,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
         Arrays.fill(inputNeuronen,0);
 
-        if (unteresFeld.getZeile() < see.getGroesse() && !besuchteKoordinaten.contains(unteresFeld)) {
+        if (unteresFeld.getZeile() < see.getGroesse() && koordinateNochNichtBenutzt(unteresFeld,besuchteKoordinaten)) {
             inputNeuronen[unteresFeld.getZeile()*see.getGroesse()+unteresFeld.getSpalte()] = 1;
             multiLayerPerceptron.setInput(inputNeuronen);
             multiLayerPerceptron.calculate();
@@ -207,7 +222,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
         Arrays.fill(inputNeuronen,0);
 
-        if (oberesFeld.getZeile() >= 0 && !besuchteKoordinaten.contains(oberesFeld)) {
+        if (oberesFeld.getZeile() >= 0 && koordinateNochNichtBenutzt(oberesFeld,besuchteKoordinaten)) {
             inputNeuronen[oberesFeld.getZeile()*see.getGroesse()+oberesFeld.getSpalte()] = 1;
             multiLayerPerceptron.setInput(inputNeuronen);
             multiLayerPerceptron.calculate();
@@ -219,7 +234,6 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
             }
         }
 
-        besuchteKoordinaten.add(besteKoordinate);
         return besteKoordinate;
     }
 
