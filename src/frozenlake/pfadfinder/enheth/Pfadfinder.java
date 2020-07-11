@@ -68,54 +68,32 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
             DataSet trainingSet = new DataSet(see.getGroesse()*see.getGroesse(),1);
 
-            Koordinate aktuellePosition = see.spielerPosition();
-            Koordinate besterNachfolger = null;
+            for(int episode = 0; episode < 100; episode++){
 
-            do{
-
-                aktuellePosition = sucheBestesFeld(aktuellePosition);
-                besterNachfolger = sucheBestesFeld(aktuellePosition);
-
-                double r;
-
-                if (aktuellePosition == null)
-                    break;
-
-                double vsResult = 0;
-
+                Koordinate aktuellePosition = see.spielerPosition();
                 Zustand aktuellerZustand = see.zustandAn(aktuellePosition);
 
-                if (aktuellerZustand == Zustand.Ziel) {
-                    vsResult = rewardZiel;
-                    break;
-                } else if (aktuellerZustand == Zustand.UWasser || aktuellerZustand == Zustand.Wasser) {
-                    vsResult = rewardWasser;
-                    break;
-                } else
-                    vsResult = (1 - lernrate) * seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] + diskontfaktor * lernrate * (seeBewertungen[besterNachfolger.getZeile()][besterNachfolger.getSpalte()] + rewardSchritt);
+                double reward = 0;
+                double[] inputNeuronen = new double[see.getGroesse()*see.getGroesse()];
+
+                do{
+
+                    if (aktuellerZustand == Zustand.Ziel) {
+                        inputNeuronen[aktuellePosition.getZeile()*see.getGroesse()+aktuellePosition.getSpalte()*see.getGroesse()] = 1;
+                        trainingSet.addRow(inputNeuronen, new double[]{100});
+                        break;
+                    } else if (aktuellerZustand == Zustand.UWasser || aktuellerZustand == Zustand.Wasser) {
+                        seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] = rewardWasser;
+                        break;
+                    } else
+                        seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] = (1 - lernrate) * seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] + diskontfaktor * lernrate * (seeBewertungen[besterNachfolger.getZeile()][besterNachfolger.getSpalte()] + rewardSchritt);
 
 
-                double[] zustand = new double[see.getGroesse()*see.getGroesse()];
-                for(int zeile = 0; zeile < see.getGroesse(); zeile++){
-                    for(int spalte = 0; spalte < see.getGroesse(); spalte++){
-
-                        if(aktuellePosition.getSpalte() == spalte && aktuellePosition.getZeile() == zeile)
-                            zustand[zeile*see.getGroesse()+spalte] = 1;
-                        else
-                            zustand[zeile*see.getGroesse()+spalte] = 0;
-                    }
-                }
-                trainingSet.addRow(new DataSetRow(zustand,new double[]{vsResult}));
-
-            }while (true);
+                } while(aktuellerZustand == Zustand.Eis || aktuellerZustand == Zustand.UEis);
 
 
-            for(int zeile = 0; zeile < see.getGroesse(); zeile++){
-                for(int spalte = 0; spalte < see.getGroesse(); spalte++){
-
-
-                }
             }
+
             multiLayerPerceptron = new MultiLayerPerceptron(TransferFunctionType.TANH, see.getGroesse()*see.getGroesse(), see.getGroesse()*see.getGroesse(), 1);
             multiLayerPerceptron.getLearningRule().setMaxError(0.00000001d);
             multiLayerPerceptron.learn(trainingSet);
@@ -310,7 +288,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
             }
 
         }
-
+        
         return false;
     }
 
