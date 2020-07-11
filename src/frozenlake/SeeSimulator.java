@@ -15,9 +15,9 @@ public class SeeSimulator {
             testsee.speichereSee("Testsee");
 
             Pfadfinder test = new Pfadfinder();
-            test.lerneSee(testsee, true, true, false);
+            test.lerneSee(testsee, true, true, true);
 
-            test.starteUeberquerung(testsee, true,true,false);
+            test.starteUeberquerung(testsee, true,true,true);
             testsee.anzeigen();
 
             Zustand naechsterZustand = Zustand.Start;
