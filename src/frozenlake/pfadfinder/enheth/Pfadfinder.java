@@ -5,6 +5,7 @@ import frozenlake.Richtung;
 import frozenlake.See;
 import frozenlake.Zustand;
 import org.neuroph.core.data.DataSet;
+import org.neuroph.core.data.DataSetRow;
 import org.neuroph.core.transfer.Linear;
 import org.neuroph.nnet.MultiLayerPerceptron;
 import org.neuroph.util.TransferFunctionType;
@@ -67,7 +68,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
         else if (stateValue && neuronalesNetz) {
 
             multiLayerPerceptron = new MultiLayerPerceptron(TransferFunctionType.TANH, see.getGroesse()*see.getGroesse(), see.getGroesse()*see.getGroesse(), 1);
-            multiLayerPerceptron.getOutputNeurons()[0].setTransferFunction(new Linear());
+            multiLayerPerceptron.getOutputNeurons().get(0).setTransferFunction(new Linear());
             multiLayerPerceptron.getLearningRule().setMaxError(0.01d);
 
             for(int episode = 0; episode < 10; episode++){
@@ -85,11 +86,11 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
                     if (aktuellerZustand == Zustand.Ziel) {
                         inputNeuronen[aktuellePosition.getZeile()+aktuellePosition.getSpalte()*see.getGroesse()] = 1;
-                        trainingSet.addRow(inputNeuronen, new double[]{100});
+                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{100}));
                         break;
                     } else if (aktuellerZustand == Zustand.UWasser || aktuellerZustand == Zustand.Wasser) {
                         inputNeuronen[aktuellePosition.getZeile()+aktuellePosition.getSpalte()*see.getGroesse()] = 1;
-                        trainingSet.addRow(inputNeuronen, new double[]{-100});
+                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{-100}));
                         break;
                     } else {
 
@@ -115,7 +116,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
 
                         double[] trainingData = new double[]{(1 - lernrate) * aktuelleBewertung + diskontfaktor * lernrate * (besteBewertung + rewardSchritt)};
-                        trainingSet.addRow(inputNeuronen, new double[]{(1 - lernrate) * aktuelleBewertung + diskontfaktor * lernrate * (besteBewertung + rewardSchritt)});
+                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{(1 - lernrate) * aktuelleBewertung + diskontfaktor * lernrate * (besteBewertung + rewardSchritt)}));
 
                         aktuellePosition = besteKoordinate;
                         aktuellerZustand = see.zustandAn(aktuellePosition);
