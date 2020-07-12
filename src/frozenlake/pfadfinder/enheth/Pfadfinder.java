@@ -69,15 +69,14 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
             multiLayerPerceptron = new MultiLayerPerceptron(TransferFunctionType.TANH, see.getGroesse()*see.getGroesse(), see.getGroesse()*see.getGroesse(), 1);
             multiLayerPerceptron.getOutputNeurons().get(0).setTransferFunction(new Linear());
-            multiLayerPerceptron.getLearningRule().setMaxError(0.01d);
+            multiLayerPerceptron.getLearningRule().setMaxError(0.00000001d);
 
-            for(int episode = 0; episode < 10; episode++){
+            for(int episode = 0; episode < 100; episode++){
 
                 DataSet trainingSet = new DataSet(see.getGroesse()*see.getGroesse(),1);
                 ArrayList<Koordinate> besuchteKoordinaten = new ArrayList<>();
                 Koordinate aktuellePosition = see.spielerPosition();
                 Zustand aktuellerZustand = see.zustandAn(aktuellePosition);
-
 
                 while(true){
                     double reward = 0;
@@ -86,11 +85,11 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
                     if (aktuellerZustand == Zustand.Ziel) {
                         inputNeuronen[aktuellePosition.getZeile()+aktuellePosition.getSpalte()*see.getGroesse()] = 1;
-                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{100}));
+                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{10}));
                         break;
                     } else if (aktuellerZustand == Zustand.UWasser || aktuellerZustand == Zustand.Wasser) {
                         inputNeuronen[aktuellePosition.getZeile()+aktuellePosition.getSpalte()*see.getGroesse()] = 1;
-                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{-100}));
+                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{-10}));
                         break;
                     } else {
 
@@ -120,10 +119,13 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
                         aktuellePosition = besteKoordinate;
                         aktuellerZustand = see.zustandAn(aktuellePosition);
+
                     }
+
                 }
 
                 multiLayerPerceptron.learn(trainingSet);
+
             }
 
 

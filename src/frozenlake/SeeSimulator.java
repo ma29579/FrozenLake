@@ -10,7 +10,7 @@ public class SeeSimulator {
         try {
 
 
-            See testsee = new See("Testsee", 8, new Koordinate(0, 0), new Koordinate(7, 7));
+            See testsee = new See("Testsee", 6, new Koordinate(0, 0), new Koordinate(5, 5));
             testsee.wegErzeugen();
             testsee.speichereSee("Testsee");
 
