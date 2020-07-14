@@ -67,9 +67,22 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
         //Aufgabe b
         else if (stateValue && neuronalesNetz) {
 
-            multiLayerPerceptron = new MultiLayerPerceptron(TransferFunctionType.TANH, see.getGroesse()*see.getGroesse(), see.getGroesse()*see.getGroesse(), 1);
+            multiLayerPerceptron = new MultiLayerPerceptron(TransferFunctionType.TANH, see.getGroesse()*see.getGroesse(), see.getGroesse()*see.getGroesse(),see.getGroesse()*see.getGroesse(), 1);
             multiLayerPerceptron.getOutputNeurons().get(0).setTransferFunction(new Linear());
-            multiLayerPerceptron.getLearningRule().setMaxError(0.00000001d);
+            multiLayerPerceptron.getLearningRule().setMaxError(0.01d);
+
+            DataSet initSet = new DataSet(see.getGroesse()*see.getGroesse());
+
+
+            for(int i = 0; i < see.getGroesse()*see.getGroesse();i++){
+                double[] tmp = new double[see.getGroesse()*see.getGroesse()];
+                tmp[i] = 1;
+                initSet.add(tmp, new double[]{0});
+            }
+
+            multiLayerPerceptron.learn(initSet);
+
+            //neuronalesNetzAusgeben(multiLayerPerceptron, see);
 
             for(int episode = 0; episode < 100; episode++){
 
@@ -79,17 +92,16 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
                 Zustand aktuellerZustand = see.zustandAn(aktuellePosition);
 
                 while(true){
-                    double reward = 0;
                     double[] inputNeuronen = new double[see.getGroesse()*see.getGroesse()];
                     besuchteKoordinaten.add(aktuellePosition);
 
                     if (aktuellerZustand == Zustand.Ziel) {
                         inputNeuronen[aktuellePosition.getZeile()+aktuellePosition.getSpalte()*see.getGroesse()] = 1;
-                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{10}));
+                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{1}));
                         break;
-                    } else if (aktuellerZustand == Zustand.UWasser || aktuellerZustand == Zustand.Wasser) {
+                    } else if (aktuellerZustand == Zustand.Wasser || aktuellerZustand == Zustand.UWasser) {
                         inputNeuronen[aktuellePosition.getZeile()+aktuellePosition.getSpalte()*see.getGroesse()] = 1;
-                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{-10}));
+                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{-1}));
                         break;
                     } else {
 
@@ -116,20 +128,62 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
                         double[] trainingData = new double[]{(1 - lernrate) * aktuelleBewertung + diskontfaktor * lernrate * (besteBewertung + rewardSchritt)};
                         trainingSet.add(new DataSetRow(inputNeuronen, new double[]{(1 - lernrate) * aktuelleBewertung + diskontfaktor * lernrate * (besteBewertung + rewardSchritt)}));
+                        //trainingSet.add(new DataSetRow(inputNeuronen, new double[]{rewardSchritt + diskontfaktor * (besteBewertung + rewardSchritt)}));
 
                         aktuellePosition = besteKoordinate;
                         aktuellerZustand = see.zustandAn(aktuellePosition);
+                        int i = 0;
 
                     }
 
                 }
 
+
+                double[][] bisherigeBewertungen = new double[see.getGroesse()][see.getGroesse()];
+
+                for(int zeile = 0; zeile < see.getGroesse(); zeile++){
+                    for(int spalte = 0; spalte < see.getGroesse(); spalte++){
+
+                        double[] tmp = new double[see.getGroesse()*see.getGroesse()];
+                        tmp[zeile*see.getGroesse()+spalte] = 1;
+
+                        multiLayerPerceptron.setInput(tmp);
+                        multiLayerPerceptron.calculate();
+                        bisherigeBewertungen[zeile][spalte] = multiLayerPerceptron.getOutput()[0];
+
+                    }
+                }
+
+                for(int zeile = 0; zeile < see.getGroesse(); zeile++){
+                    for(int spalte = 0; spalte < see.getGroesse(); spalte++){
+
+                        Koordinate aktuelleKoordinate = new Koordinate(zeile,spalte);
+
+                        if(besuchteKoordinaten.contains(aktuelleKoordinate))
+                            continue;
+
+                        double[] aktuellerInput = new double[see.getGroesse()*see.getGroesse()];
+                        aktuellerInput[zeile*see.getGroesse()+spalte] = 1;
+                        trainingSet.add(aktuellerInput,new double[]{bisherigeBewertungen[zeile][spalte]});
+
+                    }
+                }
+
+
                 multiLayerPerceptron.learn(trainingSet);
+                System.out.println("--------------------------");
+                neuronalesNetzAusgeben(multiLayerPerceptron,see);
 
             }
 
 
         }
+
+        neuronalesNetzAusgeben(multiLayerPerceptron, see);
+        return false;
+    }
+
+    private void neuronalesNetzAusgeben(MultiLayerPerceptron netz, See see){
 
         double[][] testBewertungen = new double[see.getGroesse()][see.getGroesse()];
 
@@ -158,7 +212,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
             System.out.println("");
         }
 
-        return false;
+        System.out.println("-----------------");
     }
 
     private boolean koordinateNochNichtBenutzt(Koordinate aktuelleKoordinate, ArrayList<Koordinate> besuchteKoordinaten){
