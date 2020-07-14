@@ -10,14 +10,14 @@ public class SeeSimulator {
         try {
 
 
-            See testsee = new See("Testsee", 8, new Koordinate(0, 0), new Koordinate(7, 7));
+            See testsee = new See("Testsee", 6, new Koordinate(0, 0), new Koordinate(5, 5));
             testsee.wegErzeugen();
             testsee.speichereSee("Testsee");
 
             Pfadfinder test = new Pfadfinder();
-            test.lerneSee(testsee, true, true, true);
+            test.lerneSee(testsee, true, false, true);
 
-            test.starteUeberquerung(testsee, true,true,true);
+            test.starteUeberquerung(testsee, true,false,true);
             testsee.anzeigen();
 
             Zustand naechsterZustand = Zustand.Start;

@@ -10,6 +10,10 @@ import org.neuroph.core.transfer.Linear;
 import org.neuroph.nnet.MultiLayerPerceptron;
 import org.neuroph.util.TransferFunctionType;
 
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -23,6 +27,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
     double rewardZiel = 100;
     Koordinate aktuelleSpielerPosition;
     MultiLayerPerceptron multiLayerPerceptron;
+    See aktuellerSee;
 
     boolean stateValue;
     boolean neuralesNetz;
@@ -71,7 +76,24 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
             multiLayerPerceptron.getOutputNeurons().get(0).setTransferFunction(new Linear());
             multiLayerPerceptron.getLearningRule().setMaxError(0.01d);
 
-            for (int episode = 0; episode < 10; episode++) {
+            DataSet initSet = new DataSet(see.getGroesse() + see.getGroesse());
+
+
+
+/*            for(int i = 0; i < see.getGroesse();i++){
+                for(int j = 0; j <see.getGroesse();j++){
+
+                    double[] tmp = new double[see.getGroesse()+see.getGroesse()];
+                    tmp[i] = 1;
+                    tmp[j+see.getGroesse()] = 1;
+                    initSet.add(tmp, new double[]{0});
+
+                }
+            }*/
+
+            //multiLayerPerceptron.learn(initSet);
+
+            for (int episode = 0; episode < 100; episode++) {
 
                 DataSet trainingSet = new DataSet(see.getGroesse() + see.getGroesse(), 1);
                 ArrayList<Koordinate> besuchteKoordinaten = new ArrayList<>();
@@ -87,12 +109,12 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
                     if (aktuellerZustand == Zustand.Ziel) {
                         inputNeuronen[aktuellePosition.getZeile()] = 1;
                         inputNeuronen[aktuellePosition.getSpalte() + see.getGroesse()] = 1;
-                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{100}));
+                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{10}));
                         break;
                     } else if (aktuellerZustand == Zustand.UWasser || aktuellerZustand == Zustand.Wasser) {
                         inputNeuronen[aktuellePosition.getZeile()] = 1;
                         inputNeuronen[aktuellePosition.getSpalte() + see.getGroesse()] = 1;
-                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{-100}));
+                        trainingSet.add(new DataSetRow(inputNeuronen, new double[]{-10}));
                         break;
                     } else {
 
@@ -117,10 +139,11 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
                         double besteBewertung = multiLayerPerceptron.getOutput()[0];
 
                         inputNeuronen[aktuellePosition.getZeile()] = 1;
-                        inputNeuronen[aktuellePosition.getSpalte() * see.getGroesse()] = 1;
+                        inputNeuronen[aktuellePosition.getSpalte() + see.getGroesse()] = 1;
 
 
                         double[] trainingData = new double[]{(1 - lernrate) * aktuelleBewertung + diskontfaktor * lernrate * (besteBewertung + rewardSchritt)};
+
                         trainingSet.add(new DataSetRow(inputNeuronen, new double[]{(1 - lernrate) * aktuelleBewertung + diskontfaktor * lernrate * (besteBewertung + rewardSchritt)}));
 
                         aktuellePosition = besteKoordinate;
@@ -128,19 +151,56 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
                     }
                 }
 
+                double[][] bisherigeBewertungen = new double[see.getGroesse()][see.getGroesse()];
+
+                for (int zeile = 0; zeile < see.getGroesse(); zeile++) {
+                    for (int spalte = 0; spalte < see.getGroesse(); spalte++) {
+
+                        double[] tmp = new double[see.getGroesse() + see.getGroesse()];
+                        tmp[zeile] = 1;
+                        tmp[spalte + see.getGroesse()] = 1;
+
+                        multiLayerPerceptron.setInput(tmp);
+                        multiLayerPerceptron.calculate();
+                        bisherigeBewertungen[zeile][spalte] = multiLayerPerceptron.getOutput()[0];
+
+                    }
+                }
+
+                for (int zeile = 0; zeile < see.getGroesse(); zeile++) {
+                    for (int spalte = 0; spalte < see.getGroesse(); spalte++) {
+
+                        Koordinate aktuelleKoordinate = new Koordinate(zeile, spalte);
+
+                        if (!koordinateNochNichtBenutzt(aktuelleKoordinate, besuchteKoordinaten))
+                            continue;
+
+
+                        double[] aktuellerInput = new double[see.getGroesse() + see.getGroesse()];
+                        aktuellerInput[zeile] = 1;
+                        aktuellerInput[spalte + see.getGroesse()] = 1;
+                        trainingSet.add(aktuellerInput, new double[]{bisherigeBewertungen[zeile][spalte]});
+
+                    }
+                }
+                System.out.println("episode = " + episode);
                 multiLayerPerceptron.learn(trainingSet);
             }
 
-
+            multiLayerPerceptron.save("gespeicherteNetze/" + see.getId() + ".nnet");
         }
 
+        return false;
+    }
+
+    private void ausgabeNetz(See see) {
         double[][] testBewertungen = new double[see.getGroesse()][see.getGroesse()];
 
         for (int zeile = 0; zeile < see.getGroesse(); zeile++) {
             for (int spalte = 0; spalte < see.getGroesse(); spalte++) {
 
                 double[] tmp = new double[see.getGroesse() + see.getGroesse()];
-                tmp[zeile * see.getGroesse() + spalte] = 1;
+                tmp[zeile] = 1;
                 tmp[see.getGroesse() + spalte] = 1;
 
                 multiLayerPerceptron.setInput(tmp);
@@ -161,8 +221,6 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
             System.out.println("");
         }
-
-        return false;
     }
 
     private boolean koordinateNochNichtBenutzt(Koordinate aktuelleKoordinate, ArrayList<Koordinate> besuchteKoordinaten) {
@@ -174,6 +232,78 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
         }
 
         return true;
+    }
+
+    private Koordinate besterNachfolgerNN(Koordinate aktuelleKoordinate) {
+
+        double besteBewertung = -Double.MAX_VALUE;
+        Koordinate besteKoordinate = null;
+        Koordinate linkesFeld = new Koordinate(aktuelleKoordinate.getZeile(), aktuelleKoordinate.getSpalte() - 1);
+        Koordinate rechtesFeld = new Koordinate(aktuelleKoordinate.getZeile(), aktuelleKoordinate.getSpalte() + 1);
+        Koordinate unteresFeld = new Koordinate(aktuelleKoordinate.getZeile() + 1, aktuelleKoordinate.getSpalte());
+        Koordinate oberesFeld = new Koordinate(aktuelleKoordinate.getZeile() - 1, aktuelleKoordinate.getSpalte());
+
+        double[] inputNeuronen = new double[aktuellerSee.getGroesse() + aktuellerSee.getGroesse()];
+
+        if (linkesFeld.getSpalte() >= 0) {
+            inputNeuronen[linkesFeld.getZeile()] = 1;
+            inputNeuronen[aktuellerSee.getGroesse() + linkesFeld.getSpalte()] = 1;
+            multiLayerPerceptron.setInput(inputNeuronen);
+            multiLayerPerceptron.calculate();
+            double bewertungLinkesFeld = multiLayerPerceptron.getOutput()[0];
+
+            if (bewertungLinkesFeld > besteBewertung) {
+                besteKoordinate = linkesFeld;
+                besteBewertung = bewertungLinkesFeld;
+            }
+        }
+
+        Arrays.fill(inputNeuronen, 0);
+
+        if (rechtesFeld.getSpalte() < aktuellerSee.getGroesse()) {
+            inputNeuronen[rechtesFeld.getZeile()] = 1;
+            inputNeuronen[aktuellerSee.getGroesse() + rechtesFeld.getSpalte()] = 1;
+            multiLayerPerceptron.setInput(inputNeuronen);
+            multiLayerPerceptron.calculate();
+            double bewertungRechtesFeld = multiLayerPerceptron.getOutput()[0];
+
+            if (bewertungRechtesFeld > besteBewertung) {
+                besteKoordinate = rechtesFeld;
+                besteBewertung = bewertungRechtesFeld;
+            }
+        }
+
+        Arrays.fill(inputNeuronen, 0);
+
+        if (unteresFeld.getZeile() < aktuellerSee.getGroesse()) {
+            inputNeuronen[unteresFeld.getZeile()] = 1;
+            inputNeuronen[aktuellerSee.getGroesse() + unteresFeld.getSpalte()] = 1;
+            multiLayerPerceptron.setInput(inputNeuronen);
+            multiLayerPerceptron.calculate();
+            double bewertungUnteresFeld = multiLayerPerceptron.getOutput()[0];
+
+            if (bewertungUnteresFeld > besteBewertung) {
+                besteKoordinate = unteresFeld;
+                besteBewertung = bewertungUnteresFeld;
+            }
+        }
+
+        Arrays.fill(inputNeuronen, 0);
+
+        if (oberesFeld.getZeile() >= 0) {
+            inputNeuronen[oberesFeld.getZeile()] = 1;
+            inputNeuronen[aktuellerSee.getGroesse() + oberesFeld.getSpalte()] = 1;
+            multiLayerPerceptron.setInput(inputNeuronen);
+            multiLayerPerceptron.calculate();
+            double bewertungOberesFeld = multiLayerPerceptron.getOutput()[0];
+
+            if (bewertungOberesFeld > besteBewertung) {
+                besteKoordinate = oberesFeld;
+                besteBewertung = bewertungOberesFeld;
+            }
+        }
+
+        return besteKoordinate;
     }
 
     private Koordinate berechneMaxNachfolgerNN(Koordinate aktuelleKoordinate, See see, ArrayList<Koordinate> besuchteKoordinaten) {
@@ -188,7 +318,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
         double[] inputNeuronen = new double[see.getGroesse() + see.getGroesse()];
 
         if (linkesFeld.getSpalte() >= 0 && koordinateNochNichtBenutzt(linkesFeld, besuchteKoordinaten)) {
-            inputNeuronen[linkesFeld.getZeile() * see.getGroesse() + linkesFeld.getSpalte()] = 1;
+            inputNeuronen[linkesFeld.getZeile()] = 1;
             inputNeuronen[see.getGroesse() + linkesFeld.getSpalte()] = 1;
             multiLayerPerceptron.setInput(inputNeuronen);
             multiLayerPerceptron.calculate();
@@ -218,7 +348,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
         Arrays.fill(inputNeuronen, 0);
 
         if (unteresFeld.getZeile() < see.getGroesse() && koordinateNochNichtBenutzt(unteresFeld, besuchteKoordinaten)) {
-            inputNeuronen[unteresFeld.getZeile() * see.getGroesse() + unteresFeld.getSpalte()] = 1;
+            inputNeuronen[unteresFeld.getZeile()] = 1;
             inputNeuronen[see.getGroesse() + unteresFeld.getSpalte()] = 1;
             multiLayerPerceptron.setInput(inputNeuronen);
             multiLayerPerceptron.calculate();
@@ -233,7 +363,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
         Arrays.fill(inputNeuronen, 0);
 
         if (oberesFeld.getZeile() >= 0 && koordinateNochNichtBenutzt(oberesFeld, besuchteKoordinaten)) {
-            inputNeuronen[oberesFeld.getZeile() * see.getGroesse() + oberesFeld.getSpalte()] = 1;
+            inputNeuronen[oberesFeld.getZeile()] = 1;
             inputNeuronen[see.getGroesse() + oberesFeld.getSpalte()] = 1;
             multiLayerPerceptron.setInput(inputNeuronen);
             multiLayerPerceptron.calculate();
@@ -246,6 +376,44 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
         }
 
         return besteKoordinate;
+    }
+
+    private void speichereArray(See see, String name) {
+
+        try {
+
+            FileOutputStream fileOut = new FileOutputStream("gespeicherteArrays/" + see.getId() + "_" + name);
+            ObjectOutputStream objectOut = new ObjectOutputStream(fileOut);
+            objectOut.writeObject(seeBewertungen);
+            objectOut.close();
+            System.out.println("The Object  was succesfully written to a file");
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+
+    }
+
+    private double[][] ladeArray(See see, String name) {
+
+        try {
+
+            FileInputStream fileIn = new FileInputStream("gespeicherteArrays/" + see.getId() + "_" + name);
+            ObjectInputStream objectIn = new ObjectInputStream(fileIn);
+
+            double[][] obj = (double[][]) objectIn.readObject();
+
+            System.out.println("The Object has been read from the file");
+            objectIn.close();
+            return obj;
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            return null;
+        }
+
+
     }
 
     private void lerneSeeStateValueOffPolicy(See see) {
@@ -277,6 +445,7 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
             }
         }
+
 
     }
 
@@ -311,6 +480,8 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
             }
         }
+
+        speichereArray(see, "TEST_OFFPOLICY");
 
     }
 
@@ -404,27 +575,28 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
     public boolean starteUeberquerung(See see, boolean stateValue, boolean neuronalesNetz, boolean onPolicy) {
 
         aktuelleSpielerPosition = see.spielerPosition();
+        aktuellerSee = see;
 
         //Aufgabe a
         if (stateValue && !neuronalesNetz) {
 
+            seeBewertungen = new double[see.getGroesse()][see.getGroesse()];
+            seeBewertungen = ladeArray(see,"TEST_OFFPOLICY");
+            int i = 0;
 
             if (onPolicy) {
                 //On-Policy
-                lerneSeeStateValueOnPolicy(see);
+                //lerneSeeStateValueOnPolicy(see);
             } else {
                 //Off-Policy
-                lerneSeeStateValueOffPolicy(see);
+                //lerneSeeStateValueOffPolicy(see);
             }
 
         }
         //Aufgabe b
         else if (stateValue && neuronalesNetz) {
 
-
-            if (onPolicy) {
-
-            }
+            multiLayerPerceptron = (MultiLayerPerceptron) MultiLayerPerceptron.createFromFile("gespeicherteNetze/" + see.getId() + ".nnet");
 
         }
 
@@ -437,6 +609,19 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
         if (stateValue && !neuralesNetz) {
 
             Koordinate bestesFeld = sucheBestesFeld(aktuelleSpielerPosition);
+
+            if (bestesFeld.getZeile() < aktuelleSpielerPosition.getZeile())
+                return Richtung.HOCH;
+            else if (bestesFeld.getZeile() > aktuelleSpielerPosition.getZeile())
+                return Richtung.RUNTER;
+            else if (bestesFeld.getSpalte() > aktuelleSpielerPosition.getSpalte())
+                return Richtung.RECHTS;
+            else if (bestesFeld.getSpalte() < aktuelleSpielerPosition.getSpalte())
+                return Richtung.LINKS;
+
+        } else if (stateValue) {
+
+            Koordinate bestesFeld = besterNachfolgerNN(aktuelleSpielerPosition);
 
             if (bestesFeld.getZeile() < aktuelleSpielerPosition.getZeile())
                 return Richtung.HOCH;
