@@ -4,6 +4,7 @@ import frozenlake.Koordinate;
 import frozenlake.Richtung;
 import frozenlake.See;
 import frozenlake.Zustand;
+import frozenlake.pfadfinder.IPfadfinder;
 import org.neuroph.core.data.DataSet;
 import org.neuroph.core.data.DataSetRow;
 import org.neuroph.core.transfer.Linear;
@@ -17,7 +18,7 @@ import java.io.ObjectOutputStream;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
+public class Pfadfinder implements IPfadfinder {
 
     //Bewertungsstruktur für das Lernen ohne neurales Netz
     double[][] seeBewertungen;
