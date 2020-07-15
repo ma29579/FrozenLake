@@ -13,6 +13,7 @@ public class SeeSimulator {
             See offPolicySee = new See("offPolicySee", 6, new Koordinate(0,0), new Koordinate(5,5));
             See neuronalesNetzSee = new See("NeuronalesNetzSee", 6, new Koordinate(0,0), new Koordinate(5,5));
             testsee.wegErzeugen();
+            testsee.speichereSee("testsee");
             offPolicySee.wegErzeugen();
             neuronalesNetzSee.wegErzeugen();
             neuronalesNetzSee.speichereSee("NNSEE");
@@ -22,7 +23,7 @@ public class SeeSimulator {
             test.lerneSee(offPolicySee,true,false,false);
             test.lerneSee(neuronalesNetzSee,true,true,true);
 
-            test.starteUeberquerung(testsee, true,false,true);
+            test.starteUeberquerung(testsee, false,false,true);
             testsee.anzeigen();
 
             Zustand naechsterZustand = Zustand.Start;

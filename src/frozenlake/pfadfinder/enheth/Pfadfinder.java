@@ -19,6 +19,10 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Pfadfinder implements IPfadfinder {
+    final int oben = 0;
+    final int rechts = 1;
+    final int unten = 2;
+    final int links = 3;
 
     //Bewertungsstruktur für das Lernen ohne neurales Netz
     double[][] seeBewertungen;
@@ -111,6 +115,7 @@ public class Pfadfinder implements IPfadfinder {
         } else if (!stateValue) {
 
             lerneSeeQualityFunction(see);
+            System.out.println("Lernen für den See " + see.getId() + " abgeschlossen!");
             return true;
         }
 
@@ -157,6 +162,14 @@ public class Pfadfinder implements IPfadfinder {
             multiLayerPerceptron = (MultiLayerPerceptron) MultiLayerPerceptron.createFromFile("gespeicherteNetze/" + see.getId() + ".nnet");
 
         }
+        //Aufgabe c
+        else if (!stateValue && !neuronalesNetz) {
+
+            //3D Array QTable per ObjectInputStream laden
+            qTable = lade3DArray(see, "OFFPOLICY");
+
+        }
+
 
         return false;
     }
@@ -185,6 +198,10 @@ public class Pfadfinder implements IPfadfinder {
             //suche besten Nachbarn in neuronalem Netz
             bestesFeld = sucheBesterNachbarNN(aktuelleSpielerPosition);
 
+        }
+        //Aufgabe c
+        else if(!stateValue && !neuralesNetz){
+            bestesFeld = sucheBesterNachbarQ(aktuelleSpielerPosition);
         }
         //Nicht implementierte Konfiguration
         else {
@@ -315,11 +332,6 @@ public class Pfadfinder implements IPfadfinder {
 
         qTable = new double[see.getGroesse()][see.getGroesse()][4];
 
-        final int oben = 0;
-        final int rechts = 1;
-        final int unten = 2;
-        final int links = 3;
-
         for (int episode = 0; episode < 1000000; episode++) {
 
             Zustand naechsterZustand;
@@ -328,7 +340,6 @@ public class Pfadfinder implements IPfadfinder {
             while(true){
 
                 int aktion = ThreadLocalRandom.current().nextInt(0, 4);
-                Zustand aktuellerZustand = see.zustandAn(aktuelleSpielerPosition);
 
                 if (aktion == oben && aktuelleSpielerPosition.getZeile() > 0) {
                     naechstesFeld = new Koordinate(aktuelleSpielerPosition.getZeile() - 1, aktuelleSpielerPosition.getSpalte());
@@ -347,7 +358,7 @@ public class Pfadfinder implements IPfadfinder {
                 if (naechsterZustand == Zustand.Ziel) {
                     qTable[aktuelleSpielerPosition.getZeile()][aktuelleSpielerPosition.getSpalte()][aktion] = rewardZiel;
                     break;
-                } else if (naechsterZustand == Zustand.UWasser || aktuellerZustand == Zustand.Wasser) {
+                } else if (naechsterZustand == Zustand.UWasser || naechsterZustand == Zustand.Wasser) {
                     qTable[aktuelleSpielerPosition.getZeile()][aktuelleSpielerPosition.getSpalte()][aktion] = rewardWasser;
                 } else {
 
@@ -381,64 +392,37 @@ public class Pfadfinder implements IPfadfinder {
 
         }
 
-        for (int zeile = 0; zeile < see.getGroesse(); zeile++) {
-            for (int spalte = 0; spalte < see.getGroesse(); spalte++) {
+        speichere3DArray(see, "OFFPOLICY");
+    }
 
-                double maxBewertung = -Double.MAX_VALUE;
-                boolean test = false;
-                String aktion = "X";
+    private Koordinate sucheBesterNachbarQ(Koordinate aktuelleKoordinate) {
+        See see = this.aktuellerSee;
+        double maxBewertung = -Double.MAX_VALUE;
+        Koordinate besteNachbar = null;
 
-                if (zeile > 0 && qTable[zeile][spalte][oben] > maxBewertung) {
+        int zeile = aktuelleKoordinate.getZeile();
+        int spalte = aktuelleKoordinate.getSpalte();
 
-                    maxBewertung = qTable[zeile][spalte][oben];
-                    if(maxBewertung != 0){
-                        test = true;
-                    }
-
-                    aktion = "O";
-                }
-
-                if (spalte < see.getGroesse() - 1 && qTable[zeile][spalte][rechts] > maxBewertung) {
-                    maxBewertung = qTable[zeile][spalte][rechts];
-
-                    if(maxBewertung != 0){
-                        test = true;
-                    }
-
-                    aktion = "R";
-                }
-
-                if (zeile < see.getGroesse() - 1 && qTable[zeile][spalte][unten] > maxBewertung) {
-                    maxBewertung = qTable[zeile][spalte][unten];
-
-                    if(maxBewertung != 0){
-                        test = true;
-                    }
-
-                    aktion = "U";
-                }
-
-                if (spalte > 0 && qTable[zeile][spalte][links] > maxBewertung) {
-                    maxBewertung = qTable[zeile][spalte][links];
-
-                    if(maxBewertung != 0){
-                        test = true;
-                    }
-
-                    aktion = "L";
-                }
-
-                if(test)
-                    System.out.print(aktion + " ");
-                else
-                    System.out.print("X ");
-            }
-
-            System.out.println();
+        if (zeile > 0 && qTable[zeile][spalte][oben] > maxBewertung) {
+            maxBewertung = qTable[zeile][spalte][oben];
+            besteNachbar = new Koordinate(zeile - 1, spalte);
         }
 
-        int i = 0;
+        if (spalte < see.getGroesse() - 1 && qTable[zeile][spalte][rechts] > maxBewertung) {
+            maxBewertung = qTable[zeile][spalte][rechts];
+            besteNachbar = new Koordinate(zeile, spalte + 1);
+        }
 
+        if (zeile < see.getGroesse() - 1 && qTable[zeile][spalte][unten] > maxBewertung) {
+            maxBewertung = qTable[zeile][spalte][unten];
+            besteNachbar = new Koordinate(zeile + 1, spalte);
+        }
+
+        if (spalte > 0 && qTable[zeile][spalte][links] > maxBewertung) {
+            besteNachbar = new Koordinate(zeile, spalte - 1);
+        }
+
+        return besteNachbar;
     }
 
     /**
@@ -799,6 +783,27 @@ public class Pfadfinder implements IPfadfinder {
     }
 
     /**
+     * Array speichern
+     *
+     * @param see  See für die ID
+     * @param name Namensendung für Datei
+     */
+    private void speichere3DArray(See see, String name) {
+
+        try {
+
+            FileOutputStream fileOut = new FileOutputStream("gespeicherte3DArrays/" + see.getId() + "_" + name);
+            ObjectOutputStream objectOut = new ObjectOutputStream(fileOut);
+            objectOut.writeObject(qTable);
+            objectOut.close();
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+    }
+
+    /**
      * Array laden
      *
      * @param see  See für die ID
@@ -813,6 +818,32 @@ public class Pfadfinder implements IPfadfinder {
             ObjectInputStream objectIn = new ObjectInputStream(fileIn);
 
             double[][] obj = (double[][]) objectIn.readObject();
+
+            objectIn.close();
+            return obj;
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            return null;
+        }
+
+    }
+
+    /**
+     * Array laden
+     *
+     * @param see  See für die ID
+     * @param name Namensendung für Datei
+     * @return Array mit Datenstruktur (3D)
+     */
+    private double[][][] lade3DArray(See see, String name) {
+
+        try {
+
+            FileInputStream fileIn = new FileInputStream("gespeicherte3DArrays/" + see.getId() + "_" + name);
+            ObjectInputStream objectIn = new ObjectInputStream(fileIn);
+
+            double[][][] obj = (double[][][]) objectIn.readObject();
 
             objectIn.close();
             return obj;
