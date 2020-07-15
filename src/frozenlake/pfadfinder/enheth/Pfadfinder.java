@@ -23,6 +23,9 @@ public class Pfadfinder implements IPfadfinder {
     //Bewertungsstruktur für das Lernen ohne neurales Netz
     double[][] seeBewertungen;
 
+    //Q-Table-Struktur
+    double[][][] qTable;
+
     //Perceptron für das Lernen mit neuronalem Netz
     MultiLayerPerceptron multiLayerPerceptron;
 
@@ -51,6 +54,7 @@ public class Pfadfinder implements IPfadfinder {
 
     /**
      * Gibt Namen unseres Pfadfinders zurück
+     *
      * @return Name
      */
     @Override
@@ -58,13 +62,15 @@ public class Pfadfinder implements IPfadfinder {
         return "enheth";
     }
 
-    /** Startet das bestärkende Lernen für einen See. Am Ende der jeweiligen Einzelmethoden für die verschiedenen Aufgaben
+    /**
+     * Startet das bestärkende Lernen für einen See. Am Ende der jeweiligen Einzelmethoden für die verschiedenen Aufgaben
      * wird die Datenstruktur bzw. das neuronale Netz gespeichert, um in der "starteUeberquerung" Methode wieder geladen
      * werden zu können
-     * @param see Zu überquerender See
-     * @param stateValue False: QValues verwenden, True: StateValue verwenden
+     *
+     * @param see            Zu überquerender See
+     * @param stateValue     False: QValues verwenden, True: StateValue verwenden
      * @param neuronalesNetz True, wenn ein neuronales Netz verwendet wird
-     * @param onPolicy False: Zufällige Züge beim Lernen, true: onPolicy-Lernen
+     * @param onPolicy       False: Zufällige Züge beim Lernen, true: onPolicy-Lernen
      * @return true, wenn Lernvorgang erfolgreich war
      */
     @Override
@@ -74,7 +80,7 @@ public class Pfadfinder implements IPfadfinder {
         aktuellerSee = see;
 
         System.out.println("Starte das Lernen für den See " + see.getId() +
-                " mit den Parametern statueValue = " + stateValue + ", neuronalesNetz = " + neuronalesNetz + " und onPolicy = " + onPolicy + "!" );
+                " mit den Parametern statueValue = " + stateValue + ", neuronalesNetz = " + neuronalesNetz + " und onPolicy = " + onPolicy + "!");
 
         //Aufgabe a
         if (stateValue && !neuronalesNetz) {
@@ -102,16 +108,22 @@ public class Pfadfinder implements IPfadfinder {
             System.out.println("Lernen für den See " + see.getId() + " abgeschlossen!");
             return true;
 
+        } else if (!stateValue) {
+
+            lerneSeeQualityFunction(see);
+            return true;
         }
 
         return false;
     }
 
-    /** Startet den Überquerungsvorgang für einen See. Wir Laden die Datenstruktur bzw. das neuronale Netz zum See
-     * @param see Zu überquerender See
-     * @param stateValue False: QValues verwenden, True: StateValue verwenden
+    /**
+     * Startet den Überquerungsvorgang für einen See. Wir Laden die Datenstruktur bzw. das neuronale Netz zum See
+     *
+     * @param see            Zu überquerender See
+     * @param stateValue     False: QValues verwenden, True: StateValue verwenden
      * @param neuronalesNetz True, wenn ein neuronales Netz verwendet wird
-     * @param onPolicy False: Zufällige Züge beim Lernen, true: onPolicy-Lernen
+     * @param onPolicy       False: Zufällige Züge beim Lernen, true: onPolicy-Lernen
      * @return true, wenn der Überquerungsvorgang erfolgreich initialisiert wurde.
      */
     @Override
@@ -130,11 +142,11 @@ public class Pfadfinder implements IPfadfinder {
             //Array mit State Values per ObjectInputStream laden
             if (onPolicy) {
                 //On-Policy
-                seeBewertungen = ladeArray(see,"ONPOLICY");
+                seeBewertungen = ladeArray(see, "ONPOLICY");
                 int i = 0;
             } else {
                 //Off-Policy
-                seeBewertungen = ladeArray(see,"OFFPOLICY");
+                seeBewertungen = ladeArray(see, "OFFPOLICY");
             }
 
         }
@@ -149,10 +161,12 @@ public class Pfadfinder implements IPfadfinder {
         return false;
     }
 
-    /** Wird wiederholt nach Start der Überquerung aufgerufen und muss den jeweils
+    /**
+     * Wird wiederholt nach Start der Überquerung aufgerufen und muss den jeweils
      * nächsten Schritt liefern.
+     *
      * @param ausgangszustand: Gibt an, was sich auf dem aktuellen Feld befindet. Kann
-     * nur "Start" oder "Eis" sein.
+     *                         nur "Start" oder "Eis" sein.
      * @return Richtung des nächsten Schrittes
      */
     @Override
@@ -190,9 +204,11 @@ public class Pfadfinder implements IPfadfinder {
         return null;
     }
 
-    /** Wird aufgerufen, wenn das Ziel erreicht wurde (endzustand = Ziel) oder wenn
+    /**
+     * Wird aufgerufen, wenn das Ziel erreicht wurde (endzustand = Ziel) oder wenn
      * der IPfadfinder ins Wasster gefallen ist (endzustand = Wasser). Hier muss aber nichts mehr konfiguriert werden,
      * da die Klasse beim nächsten Aufruf von "starteUeberquerung" wieder passend konfiguriert wird.
+     *
      * @param endzustand
      */
     @Override
@@ -202,6 +218,7 @@ public class Pfadfinder implements IPfadfinder {
 
     /**
      * Methode zum Lernen des Sees mit State Value Funktion, OnPolicy Strategie und ohne neuronales Netz
+     *
      * @param see Der aktuelle See
      */
     private void lerneSeeStateValueOnPolicy(See see) {
@@ -247,6 +264,7 @@ public class Pfadfinder implements IPfadfinder {
 
     /**
      * Methode zum Finden des besten Nachbars an einer Position für Lernansätze mit Datenstruktur (also ohne neuronales Netz)
+     *
      * @param aktuelleKoordinate Koordinate für die der beste Nachbar gesucht wird
      * @return Koordinate des besten Nachbarn
      */
@@ -289,7 +307,143 @@ public class Pfadfinder implements IPfadfinder {
     }
 
     /**
+     * Methode zum Lernen des Sees mit einer Quality-Function
+     *
+     * @param see Der aktuelle See
+     */
+    private void lerneSeeQualityFunction(See see) {
+
+        qTable = new double[see.getGroesse()][see.getGroesse()][4];
+
+        final int oben = 0;
+        final int rechts = 1;
+        final int unten = 2;
+        final int links = 3;
+
+        for (int episode = 0; episode < 1000000; episode++) {
+
+            Zustand naechsterZustand;
+            Koordinate naechstesFeld;
+
+            while(true){
+
+                int aktion = ThreadLocalRandom.current().nextInt(0, 4);
+                Zustand aktuellerZustand = see.zustandAn(aktuelleSpielerPosition);
+
+                if (aktion == oben && aktuelleSpielerPosition.getZeile() > 0) {
+                    naechstesFeld = new Koordinate(aktuelleSpielerPosition.getZeile() - 1, aktuelleSpielerPosition.getSpalte());
+                } else if (aktion == rechts && aktuelleSpielerPosition.getSpalte() < see.getGroesse() - 1) {
+                    naechstesFeld = new Koordinate(aktuelleSpielerPosition.getZeile(), aktuelleSpielerPosition.getSpalte() + 1);
+                } else if (aktion == unten && aktuelleSpielerPosition.getZeile() < see.getGroesse() - 1) {
+                    naechstesFeld = new Koordinate(aktuelleSpielerPosition.getZeile() + 1, aktuelleSpielerPosition.getSpalte());
+                } else if (aktion == links && aktuelleSpielerPosition.getSpalte() > 0) {
+                    naechstesFeld = new Koordinate(aktuelleSpielerPosition.getZeile(), aktuelleSpielerPosition.getSpalte() - 1);
+                } else {
+                    continue;
+                }
+
+                naechsterZustand = see.zustandAn(naechstesFeld);
+
+                if (naechsterZustand == Zustand.Ziel) {
+                    qTable[aktuelleSpielerPosition.getZeile()][aktuelleSpielerPosition.getSpalte()][aktion] = rewardZiel;
+                    break;
+                } else if (naechsterZustand == Zustand.UWasser || aktuellerZustand == Zustand.Wasser) {
+                    qTable[aktuelleSpielerPosition.getZeile()][aktuelleSpielerPosition.getSpalte()][aktion] = rewardWasser;
+                } else {
+
+                    double maxBewertung = -Double.MAX_VALUE;
+                    double aktuelleBewertung = qTable[aktuelleSpielerPosition.getZeile()][aktuelleSpielerPosition.getSpalte()][aktion];
+
+                    if (naechstesFeld.getZeile() > 0 && qTable[naechstesFeld.getZeile()][naechstesFeld.getSpalte()][oben] > maxBewertung) {
+                        maxBewertung = qTable[naechstesFeld.getZeile()][naechstesFeld.getSpalte()][oben];
+                    }
+
+                    if (naechstesFeld.getSpalte() < see.getGroesse() - 1 && qTable[naechstesFeld.getZeile()][naechstesFeld.getSpalte()][rechts] > maxBewertung) {
+                        maxBewertung = qTable[naechstesFeld.getZeile()][naechstesFeld.getSpalte()][rechts];
+                    }
+
+                    if (naechstesFeld.getZeile() < see.getGroesse() - 1 && qTable[naechstesFeld.getZeile()][naechstesFeld.getSpalte()][unten] > maxBewertung) {
+                        maxBewertung = qTable[naechstesFeld.getZeile()][naechstesFeld.getSpalte()][unten];
+                    }
+
+                    if (naechstesFeld.getSpalte() > 0 && qTable[naechstesFeld.getZeile()][naechstesFeld.getSpalte()][links] > maxBewertung) {
+                        maxBewertung = qTable[naechstesFeld.getZeile()][naechstesFeld.getSpalte()][links];
+                    }
+
+
+                    qTable[aktuelleSpielerPosition.getZeile()][aktuelleSpielerPosition.getSpalte()][aktion] =
+                            (1 - lernrate) * aktuelleBewertung + lernrate * (rewardSchritt + diskontfaktor * maxBewertung);
+
+                    aktuelleSpielerPosition = naechstesFeld;
+                }
+
+            }
+
+        }
+
+        for (int zeile = 0; zeile < see.getGroesse(); zeile++) {
+            for (int spalte = 0; spalte < see.getGroesse(); spalte++) {
+
+                double maxBewertung = -Double.MAX_VALUE;
+                boolean test = false;
+                String aktion = "X";
+
+                if (zeile > 0 && qTable[zeile][spalte][oben] > maxBewertung) {
+
+                    maxBewertung = qTable[zeile][spalte][oben];
+                    if(maxBewertung != 0){
+                        test = true;
+                    }
+
+                    aktion = "O";
+                }
+
+                if (spalte < see.getGroesse() - 1 && qTable[zeile][spalte][rechts] > maxBewertung) {
+                    maxBewertung = qTable[zeile][spalte][rechts];
+
+                    if(maxBewertung != 0){
+                        test = true;
+                    }
+
+                    aktion = "R";
+                }
+
+                if (zeile < see.getGroesse() - 1 && qTable[zeile][spalte][unten] > maxBewertung) {
+                    maxBewertung = qTable[zeile][spalte][unten];
+
+                    if(maxBewertung != 0){
+                        test = true;
+                    }
+
+                    aktion = "U";
+                }
+
+                if (spalte > 0 && qTable[zeile][spalte][links] > maxBewertung) {
+                    maxBewertung = qTable[zeile][spalte][links];
+
+                    if(maxBewertung != 0){
+                        test = true;
+                    }
+
+                    aktion = "L";
+                }
+
+                if(test)
+                    System.out.print(aktion + " ");
+                else
+                    System.out.print("X ");
+            }
+
+            System.out.println();
+        }
+
+        int i = 0;
+
+    }
+
+    /**
      * Methode zum Lernen des Sees mit State Value Funktion, OffPolicy Strategie und ohne neuronales Netz
+     *
      * @param see Der aktuelle See
      */
     private void lerneSeeStateValueOffPolicy(See see) {
@@ -335,6 +489,7 @@ public class Pfadfinder implements IPfadfinder {
 
     /**
      * Sucht zufälligen Nachbarn für OffPolicy ansatz
+     *
      * @param aktuelleKoordinate Aktuelle Koordinate für die Nachbar gesucht wird
      * @return Zufälliger Nachbar
      */
@@ -369,6 +524,7 @@ public class Pfadfinder implements IPfadfinder {
 
     /**
      * überprüft ob Koordinate im Eisfeld liegt
+     *
      * @param k Koordinate
      * @return Koordinate liegt im Eisfeld
      */
@@ -377,7 +533,8 @@ public class Pfadfinder implements IPfadfinder {
     }
 
     /**
-     *  Methode zum Lernen des Sees mit State Value Funktion, OnPolicy Strategie und mit neuronalem Netz
+     * Methode zum Lernen des Sees mit State Value Funktion, OnPolicy Strategie und mit neuronalem Netz
+     *
      * @param see Der zu lernende See
      */
     private void lerneSeeStateValueNeuronalesNetz(See see) {
@@ -498,7 +655,8 @@ public class Pfadfinder implements IPfadfinder {
 
     /**
      * guckt ob die aktuelle Koordinate in einem Array von Koordinaten enthalten ist
-     * @param aktuelleKoordinate Koordinate, die überprüft wird
+     *
+     * @param aktuelleKoordinate  Koordinate, die überprüft wird
      * @param besuchteKoordinaten Array von Koordinaten
      * @return Koordinate nicht im Array
      */
@@ -515,6 +673,7 @@ public class Pfadfinder implements IPfadfinder {
 
     /**
      * sucht besten Nachbarn ohne besuchte Felder auszuschließen
+     *
      * @param aktuelleKoordinate Aktuelle Koordinate
      * @return bester Nachbar
      */
@@ -524,8 +683,7 @@ public class Pfadfinder implements IPfadfinder {
     }
 
     /**
-     *
-     * @param aktuelleKoordinate Aktuelle Koordinate
+     * @param aktuelleKoordinate  Aktuelle Koordinate
      * @param besuchteKoordinaten Liste der besuchten Koordinaten
      * @return bester Nachbar
      */
@@ -621,7 +779,8 @@ public class Pfadfinder implements IPfadfinder {
 
     /**
      * Array speichern
-     * @param see See für die ID
+     *
+     * @param see  See für die ID
      * @param name Namensendung für Datei
      */
     private void speichereArray(See see, String name) {
@@ -641,7 +800,8 @@ public class Pfadfinder implements IPfadfinder {
 
     /**
      * Array laden
-     * @param see See für die ID
+     *
+     * @param see  See für die ID
      * @param name Namensendung für Datei
      * @return Array mit Datenstruktur
      */

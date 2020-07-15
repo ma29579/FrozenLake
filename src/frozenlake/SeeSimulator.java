@@ -1,6 +1,5 @@
 package frozenlake;
 
-import frozenlake.pfadfinder.IPfadfinder;
 import frozenlake.pfadfinder.enheth.Pfadfinder;
 
 public class SeeSimulator {
@@ -19,7 +18,7 @@ public class SeeSimulator {
             neuronalesNetzSee.speichereSee("NNSEE");
 
             Pfadfinder test = new Pfadfinder();
-            test.lerneSee(testsee, true, false, true);
+            test.lerneSee(testsee, false, false, true);
             test.lerneSee(offPolicySee,true,false,false);
             test.lerneSee(neuronalesNetzSee,true,true,true);
 
