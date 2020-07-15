@@ -16,7 +16,6 @@ public class SeeSimulator {
             testsee.wegErzeugen();
             offPolicySee.wegErzeugen();
             neuronalesNetzSee.wegErzeugen();
-            //testsee.speichereSee("Testsee");
             neuronalesNetzSee.speichereSee("NNSEE");
 
             Pfadfinder test = new Pfadfinder();

@@ -19,25 +19,53 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
 
+    //Bewertungsstruktur für das Lernen ohne neurales Netz
     double[][] seeBewertungen;
-    double lernrate = 0.5;
-    double diskontfaktor = 0.85;
-    double rewardSchritt = -1;
-    double rewardWasser = -100;
-    double rewardZiel = 100;
-    Koordinate aktuelleSpielerPosition;
-    MultiLayerPerceptron multiLayerPerceptron;
-    See aktuellerSee;
 
+    //Perceptron für das Lernen mit neuronalem Netz
+    MultiLayerPerceptron multiLayerPerceptron;
+
+    //Lernrate
+    double lernrate = 0.5;
+
+    //Diskontfaktor
+    double diskontfaktor = 0.85;
+
+    //Abstrafung pro Schritt.
+    //Das stellt sicher, dass wir beim Ansatz mit der Datenstruktur, nicht zum Feld zurückgehen, von dem wir gekommen sind
+    double rewardSchritt = -1;
+
+    //Ins Wasser zu fallen wird abgestraft
+    double rewardWasser = -10;
+
+    //Am Ziel anzukommen wird belohnt
+    double rewardZiel = 10;
+
+    //Variablen zum aktuellen Zustand des Lernes / Ablaufen des Sees
+    See aktuellerSee;
+    Koordinate aktuelleSpielerPosition;
     boolean stateValue;
     boolean neuralesNetz;
     boolean onPolicy;
 
+    /**
+     * Gibt Namen unseres Pfadfinders zurück
+     * @return Name
+     */
     @Override
     public String meinName() {
         return "enheth";
     }
 
+    /** Startet das bestärkende Lernen für einen See. Am Ende der jeweiligen Einzelmethoden für die verschiedenen Aufgaben
+     * wird die Datenstruktur bzw. das neuronale Netz gespeichert, um in der "starteUeberquerung" Methode wieder geladen
+     * werden zu können
+     * @param see Zu überquerender See
+     * @param stateValue False: QValues verwenden, True: StateValue verwenden
+     * @param neuronalesNetz True, wenn ein neuronales Netz verwendet wird
+     * @param onPolicy False: Zufällige Züge beim Lernen, true: onPolicy-Lernen
+     * @return true, wenn Lernvorgang erfolgreich war
+     */
     @Override
     public boolean lerneSee(See see, boolean stateValue, boolean neuronalesNetz, boolean onPolicy) {
 
@@ -50,15 +78,8 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
         //Aufgabe a
         if (stateValue && !neuronalesNetz) {
 
-            //Initialisierung der Bewertungsstruktur
+            //Initialisierung der Bewertungsstruktur. Der Status der Eisfelder wird nach Zeile und Spalte gespeichert.
             seeBewertungen = new double[see.getGroesse()][see.getGroesse()];
-            Koordinate position = see.spielerPosition();
-
-            for (int i = 0; i < see.getGroesse(); i++) {
-                for (int j = 0; j < see.getGroesse(); j++) {
-                    seeBewertungen[i][j] = 0;
-                }
-            }
 
             if (onPolicy) {
                 //On-Policy
@@ -85,6 +106,266 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
         return false;
     }
 
+    /** Startet den Überquerungsvorgang für einen See. Wir Laden die Datenstruktur bzw. das neuronale Netz zum See
+     * @param see Zu überquerender See
+     * @param stateValue False: QValues verwenden, True: StateValue verwenden
+     * @param neuronalesNetz True, wenn ein neuronales Netz verwendet wird
+     * @param onPolicy False: Zufällige Züge beim Lernen, true: onPolicy-Lernen
+     * @return true, wenn der Überquerungsvorgang erfolgreich initialisiert wurde.
+     */
+    @Override
+    public boolean starteUeberquerung(See see, boolean stateValue, boolean neuronalesNetz, boolean onPolicy) {
+
+        //See und seine Konfiguration zwischenspeichern um in "naechsterSchritt" richtig vorgehen zu können
+        this.stateValue = stateValue;
+        this.neuralesNetz = neuronalesNetz;
+        this.onPolicy = onPolicy;
+        this.aktuelleSpielerPosition = see.spielerPosition();
+        this.aktuellerSee = see;
+
+        //Aufgabe a
+        if (stateValue && !neuronalesNetz) {
+
+            //Array mit State Values per ObjectInputStream laden
+            if (onPolicy) {
+                //On-Policy
+                seeBewertungen = ladeArray(see,"ONPOLICY");
+                int i = 0;
+            } else {
+                //Off-Policy
+                seeBewertungen = ladeArray(see,"OFFPOLICY");
+            }
+
+        }
+        //Aufgabe b
+        else if (stateValue && neuronalesNetz) {
+
+            //Neuronales Netz mit Neuroph Funktion laden
+            multiLayerPerceptron = (MultiLayerPerceptron) MultiLayerPerceptron.createFromFile("gespeicherteNetze/" + see.getId() + ".nnet");
+
+        }
+
+        return false;
+    }
+
+    /** Wird wiederholt nach Start der Überquerung aufgerufen und muss den jeweils
+     * nächsten Schritt liefern.
+     * @param ausgangszustand: Gibt an, was sich auf dem aktuellen Feld befindet. Kann
+     * nur "Start" oder "Eis" sein.
+     * @return Richtung des nächsten Schrittes
+     */
+    @Override
+    public Richtung naechsterSchritt(Zustand ausgangszustand) {
+        Koordinate bestesFeld = null;
+        //Aufgabe A
+        if (stateValue && !neuralesNetz) {
+
+            //suche besten Nachbarn in Datenstruktur
+            bestesFeld = sucheBesterNachbar(aktuelleSpielerPosition);
+
+        }
+        //Aufgabe b
+        else if (stateValue && neuralesNetz) {
+
+            //suche besten Nachbarn in neuronalem Netz
+            bestesFeld = sucheBesterNachbarNN(aktuelleSpielerPosition);
+
+        }
+        //Nicht implementierte Konfiguration
+        else {
+            return null;
+        }
+
+        //Gehe in die passende Richtung
+        if (bestesFeld.getZeile() < aktuelleSpielerPosition.getZeile())
+            return Richtung.HOCH;
+        else if (bestesFeld.getZeile() > aktuelleSpielerPosition.getZeile())
+            return Richtung.RUNTER;
+        else if (bestesFeld.getSpalte() > aktuelleSpielerPosition.getSpalte())
+            return Richtung.RECHTS;
+        else if (bestesFeld.getSpalte() < aktuelleSpielerPosition.getSpalte())
+            return Richtung.LINKS;
+
+        return null;
+    }
+
+    /** Wird aufgerufen, wenn das Ziel erreicht wurde (endzustand = Ziel) oder wenn
+     * der IPfadfinder ins Wasster gefallen ist (endzustand = Wasser). Hier muss aber nichts mehr konfiguriert werden,
+     * da die Klasse beim nächsten Aufruf von "starteUeberquerung" wieder passend konfiguriert wird.
+     * @param endzustand
+     */
+    @Override
+    public void versuchZuende(Zustand endzustand) {
+        System.out.println("Schade");
+    }
+
+    /**
+     * Methode zum Lernen des Sees mit State Value Funktion, OnPolicy Strategie und ohne neuronales Netz
+     * @param see Der aktuelle See
+     */
+    private void lerneSeeStateValueOnPolicy(See see) {
+
+        //Mehrere Lerndurchgänge
+        for (int durchgang = 0; durchgang < 10000; durchgang++) {
+
+            Koordinate aktuellePosition = see.spielerPosition();
+            Koordinate besterNachfolger = null;
+
+            while (true) {
+
+                //aktuelle Position ist nun bester Nachbar (OnPolicy)
+                aktuellePosition = sucheBesterNachbar(aktuellePosition);
+
+                //bester Nachfolger der aktuellen Position bestimmen, um die Bewertung anpassen zu können
+                besterNachfolger = sucheBesterNachbar(aktuellePosition);
+
+                if (aktuellePosition == null)
+                    break;
+
+
+                Zustand aktuellerZustand = see.zustandAn(aktuellePosition);
+
+                if (aktuellerZustand == Zustand.Ziel) {
+                    //Wenn Ziel Bewertung auf RewardZiel und Durchgang vorbei
+                    seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] = rewardZiel;
+                    break;
+                } else if (aktuellerZustand == Zustand.UWasser || aktuellerZustand == Zustand.Wasser) {
+                    //Wenn Wasser Bewertung auf RewardWasser und Durchgang vorbei
+                    seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] = rewardWasser;
+                    break;
+                } else
+                    //Ansonsten anwenden der State Value Funktion zum bestimmen der neuen State Value an der Position
+                    seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] = (1 - lernrate) * seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] + diskontfaktor * lernrate * (seeBewertungen[besterNachfolger.getZeile()][besterNachfolger.getSpalte()] + rewardSchritt);
+
+            }
+        }
+
+        //State Value Array speichern
+        speichereArray(see, "ONPOLICY");
+
+    }
+
+    /**
+     * Methode zum Finden des besten Nachbars an einer Position für Lernansätze mit Datenstruktur (also ohne neuronales Netz)
+     * @param aktuelleKoordinate Koordinate für die der beste Nachbar gesucht wird
+     * @return Koordinate des besten Nachbarn
+     */
+    private Koordinate sucheBesterNachbar(Koordinate aktuelleKoordinate) {
+
+        //Beste Nachbarbewertung mit minimalem Wert initialisieren
+        double besteBewertung = -Double.MAX_VALUE;
+        Koordinate besteKoordinate = null;
+
+        //Definieren aller Nachbarfelder
+        Koordinate linkesFeld = new Koordinate(aktuelleKoordinate.getZeile(), aktuelleKoordinate.getSpalte() - 1);
+        Koordinate rechtesFeld = new Koordinate(aktuelleKoordinate.getZeile(), aktuelleKoordinate.getSpalte() + 1);
+        Koordinate unteresFeld = new Koordinate(aktuelleKoordinate.getZeile() + 1, aktuelleKoordinate.getSpalte());
+        Koordinate oberesFeld = new Koordinate(aktuelleKoordinate.getZeile() - 1, aktuelleKoordinate.getSpalte());
+
+        //Wenn linkes Feld existiert und besser als besteBewertung
+        if (linkesFeld.getSpalte() >= 0 && seeBewertungen[linkesFeld.getZeile()][linkesFeld.getSpalte()] >= besteBewertung) {
+            besteBewertung = seeBewertungen[linkesFeld.getZeile()][linkesFeld.getSpalte()];
+            besteKoordinate = linkesFeld;
+        }
+
+        //Wenn rechtes Feld existiert und besser als besteBewertung
+        if (rechtesFeld.getSpalte() < seeBewertungen.length && seeBewertungen[rechtesFeld.getZeile()][rechtesFeld.getSpalte()] >= besteBewertung) {
+            besteBewertung = seeBewertungen[rechtesFeld.getZeile()][rechtesFeld.getSpalte()];
+            besteKoordinate = rechtesFeld;
+        }
+
+        //Wenn unteres Feld existiert und besser als besteBewertung
+        if (unteresFeld.getZeile() < seeBewertungen.length && seeBewertungen[unteresFeld.getZeile()][unteresFeld.getSpalte()] >= besteBewertung) {
+            besteBewertung = seeBewertungen[unteresFeld.getZeile()][unteresFeld.getSpalte()];
+            besteKoordinate = unteresFeld;
+        }
+
+        //Wenn oberes Feld existiert und besser als besteBewertung
+        if (oberesFeld.getZeile() >= 0 && seeBewertungen[oberesFeld.getZeile()][oberesFeld.getSpalte()] >= besteBewertung) {
+            besteKoordinate = oberesFeld;
+        }
+
+        return besteKoordinate;
+    }
+
+    /**
+     * Methode zum Lernen des Sees mit State Value Funktion, OffPolicy Strategie und ohne neuronales Netz
+     * @param see Der aktuelle See
+     */
+    private void lerneSeeStateValueOffPolicy(See see) {
+
+        //Mehrere Lerndurchgänge
+        for (int durchgang = 0; durchgang < 10000000; durchgang++) {
+
+            Koordinate aktuellePosition = see.spielerPosition();
+            Koordinate besterNachfolger = null;
+
+            while (true) {
+
+                //aktuelle Position ist nun zufälliger Nachbar (OffPolicy)
+                aktuellePosition = sucheZufallsNachfolger(aktuellePosition);
+
+                if (aktuellePosition == null)
+                    break;
+
+                //bester Nachfolger der aktuellen Position bestimmen, um die Bewertung anpassen zu können
+                besterNachfolger = sucheBesterNachbar(aktuellePosition);
+
+                Zustand aktuellerZustand = see.zustandAn(aktuellePosition);
+
+                if (aktuellerZustand == Zustand.Ziel) {
+                    //Wenn Ziel Bewertung auf RewardZiel und Durchgang vorbei
+                    seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] = rewardZiel;
+                    break;
+                } else if (aktuellerZustand == Zustand.UWasser || aktuellerZustand == Zustand.Wasser) {
+                    //Wenn Wasser Bewertung auf RewardWasser und Durchgang vorbei
+                    seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] = rewardWasser;
+                    break;
+                } else
+                    //Ansonsten anwenden der State Value Funktion zum bestimmen der neuen State Value an der Position
+                    seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] = (1 - lernrate) * seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] + diskontfaktor * lernrate * (seeBewertungen[besterNachfolger.getZeile()][besterNachfolger.getSpalte()] + rewardSchritt);
+
+            }
+        }
+
+        //State Value Array speichern
+        speichereArray(see, "OFFPOLICY");
+
+    }
+
+    private Koordinate sucheZufallsNachfolger(Koordinate aktuelleKoordinate) {
+
+        Koordinate linkesFeld = new Koordinate(aktuelleKoordinate.getZeile(), aktuelleKoordinate.getSpalte() - 1);
+        Koordinate rechtesFeld = new Koordinate(aktuelleKoordinate.getZeile(), aktuelleKoordinate.getSpalte() + 1);
+        Koordinate unteresFeld = new Koordinate(aktuelleKoordinate.getZeile() + 1, aktuelleKoordinate.getSpalte());
+        Koordinate oberesFeld = new Koordinate(aktuelleKoordinate.getZeile() - 1, aktuelleKoordinate.getSpalte());
+
+        int zufallsFeld = ThreadLocalRandom.current().nextInt(1, 5);
+        switch (zufallsFeld) {
+            case 1:
+                if (ueberpruefeFeld(linkesFeld))
+                    return linkesFeld;
+                break;
+            case 2:
+                if (ueberpruefeFeld(rechtesFeld))
+                    return rechtesFeld;
+                break;
+            case 3:
+                if (ueberpruefeFeld(unteresFeld))
+                    return unteresFeld;
+                break;
+            case 4:
+                if (ueberpruefeFeld(oberesFeld))
+                    return oberesFeld;
+        }
+
+        return null;
+    }
+
+    private boolean ueberpruefeFeld(Koordinate k) {
+        return k.getSpalte() < seeBewertungen.length && k.getSpalte() >= 0 && k.getZeile() < seeBewertungen.length && k.getZeile() >= 0;
+    }
+
     private void lerneSeeStateValueNeuronalesNetz(See see) {
 
         multiLayerPerceptron = new MultiLayerPerceptron(TransferFunctionType.TANH, see.getGroesse() + see.getGroesse(), see.getGroesse() + see.getGroesse(), 1);
@@ -106,16 +387,16 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
                 if (aktuellerZustand == Zustand.Ziel) {
                     inputNeuronen[aktuellePosition.getZeile()] = 1;
                     inputNeuronen[aktuellePosition.getSpalte() + see.getGroesse()] = 1;
-                    trainingSet.add(new DataSetRow(inputNeuronen, new double[]{10}));
+                    trainingSet.add(new DataSetRow(inputNeuronen, new double[]{rewardZiel}));
                     break;
                 } else if (aktuellerZustand == Zustand.UWasser || aktuellerZustand == Zustand.Wasser) {
                     inputNeuronen[aktuellePosition.getZeile()] = 1;
                     inputNeuronen[aktuellePosition.getSpalte() + see.getGroesse()] = 1;
-                    trainingSet.add(new DataSetRow(inputNeuronen, new double[]{-10}));
+                    trainingSet.add(new DataSetRow(inputNeuronen, new double[]{rewardWasser}));
                     break;
                 } else {
 
-                    Koordinate besteKoordinate = berechneMaxNachfolgerNN(aktuellePosition, besuchteKoordinaten);
+                    Koordinate besteKoordinate = sucheBesterNachbarNN(aktuellePosition, besuchteKoordinaten);
 
                     if (besteKoordinate == null)
                         break;
@@ -186,35 +467,6 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
         multiLayerPerceptron.save("gespeicherteNetze/" + see.getId() + ".nnet");
     }
 
-    private void ausgabeNetz(See see) {
-        double[][] testBewertungen = new double[see.getGroesse()][see.getGroesse()];
-
-        for (int zeile = 0; zeile < see.getGroesse(); zeile++) {
-            for (int spalte = 0; spalte < see.getGroesse(); spalte++) {
-
-                double[] tmp = new double[see.getGroesse() + see.getGroesse()];
-                tmp[zeile] = 1;
-                tmp[see.getGroesse() + spalte] = 1;
-
-                multiLayerPerceptron.setInput(tmp);
-                multiLayerPerceptron.calculate();
-                testBewertungen[zeile][spalte] = multiLayerPerceptron.getOutput()[0];
-
-            }
-        }
-
-
-        for (int i = 0; i < see.getGroesse(); i++) {
-            for (int j = 0; j < see.getGroesse(); j++) {
-
-                System.out.printf("%10.2f", testBewertungen[i][j]);
-                System.out.print(" ");
-
-            }
-
-            System.out.println("");
-        }
-    }
 
     private boolean koordinateNochNichtBenutzt(Koordinate aktuelleKoordinate, ArrayList<Koordinate> besuchteKoordinaten) {
 
@@ -227,13 +479,13 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
         return true;
     }
 
-    private Koordinate berechneMaxNachfolgerNN(Koordinate aktuelleKoordinate) {
+    private Koordinate sucheBesterNachbarNN(Koordinate aktuelleKoordinate) {
 
         ArrayList<Koordinate> empty = new ArrayList<>();
-        return berechneMaxNachfolgerNN(aktuelleKoordinate, empty);
+        return sucheBesterNachbarNN(aktuelleKoordinate, empty);
     }
 
-    private Koordinate berechneMaxNachfolgerNN(Koordinate aktuelleKoordinate, ArrayList<Koordinate> besuchteKoordinaten) {
+    private Koordinate sucheBesterNachbarNN(Koordinate aktuelleKoordinate, ArrayList<Koordinate> besuchteKoordinaten) {
 
         double besteBewertung = -Double.MAX_VALUE;
         Koordinate besteKoordinate = null;
@@ -318,7 +570,6 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
             ex.printStackTrace();
         }
 
-
     }
 
     private double[][] ladeArray(See see, String name) {
@@ -338,221 +589,43 @@ public class Pfadfinder implements frozenlake.pfadfinder.IPfadfinder {
             return null;
         }
 
-
     }
 
-    private void lerneSeeStateValueOffPolicy(See see) {
 
-        for (int durchgang = 0; durchgang < 10000000; durchgang++) {
 
-            Koordinate aktuellePosition = see.spielerPosition();
-            Koordinate besterNachfolger = null;
 
-            while (true) {
 
-                aktuellePosition = sucheZufallsNachfolger(aktuellePosition);
 
-                if (aktuellePosition == null)
-                    break;
 
-                besterNachfolger = sucheBestesFeld(aktuellePosition);
 
-                Zustand aktuellerZustand = see.zustandAn(aktuellePosition);
 
-                if (aktuellerZustand == Zustand.Ziel) {
-                    seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] = rewardZiel;
-                    break;
-                } else if (aktuellerZustand == Zustand.UWasser || aktuellerZustand == Zustand.Wasser) {
-                    seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] = rewardWasser;
-                    break;
-                } else
-                    seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] = (1 - lernrate) * seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] + diskontfaktor * lernrate * (seeBewertungen[besterNachfolger.getZeile()][besterNachfolger.getSpalte()] + rewardSchritt);
+    private void ausgabeNetz(See see) {
+        double[][] testBewertungen = new double[see.getGroesse()][see.getGroesse()];
+
+        for (int zeile = 0; zeile < see.getGroesse(); zeile++) {
+            for (int spalte = 0; spalte < see.getGroesse(); spalte++) {
+
+                double[] tmp = new double[see.getGroesse() + see.getGroesse()];
+                tmp[zeile] = 1;
+                tmp[see.getGroesse() + spalte] = 1;
+
+                multiLayerPerceptron.setInput(tmp);
+                multiLayerPerceptron.calculate();
+                testBewertungen[zeile][spalte] = multiLayerPerceptron.getOutput()[0];
 
             }
         }
 
 
-        speichereArray(see, "OFFPOLICY");
+        for (int i = 0; i < see.getGroesse(); i++) {
+            for (int j = 0; j < see.getGroesse(); j++) {
 
-    }
-
-    private void lerneSeeStateValueOnPolicy(See see) {
-
-        for (int durchgang = 0; durchgang < 1000; durchgang++) {
-
-            Koordinate aktuellePosition = see.spielerPosition();
-            Koordinate besterNachfolger = null;
-
-            while (true) {
-
-                aktuellePosition = sucheBestesFeld(aktuellePosition);
-                besterNachfolger = sucheBestesFeld(aktuellePosition);
-
-                double r;
-
-                if (aktuellePosition == null)
-                    break;
-
-
-                Zustand aktuellerZustand = see.zustandAn(aktuellePosition);
-
-                if (aktuellerZustand == Zustand.Ziel) {
-                    seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] = rewardZiel;
-                    break;
-                } else if (aktuellerZustand == Zustand.UWasser || aktuellerZustand == Zustand.Wasser) {
-                    seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] = rewardWasser;
-                    break;
-                } else
-                    seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] = (1 - lernrate) * seeBewertungen[aktuellePosition.getZeile()][aktuellePosition.getSpalte()] + diskontfaktor * lernrate * (seeBewertungen[besterNachfolger.getZeile()][besterNachfolger.getSpalte()] + rewardSchritt);
+                System.out.printf("%10.2f", testBewertungen[i][j]);
+                System.out.print(" ");
 
             }
+
+            System.out.println("");
         }
-
-        speichereArray(see, "ONPOLICY");
-
-    }
-
-    private Koordinate sucheZufallsNachfolger(Koordinate aktuelleKoordinate) {
-
-        Koordinate linkesFeld = new Koordinate(aktuelleKoordinate.getZeile(), aktuelleKoordinate.getSpalte() - 1);
-        Koordinate rechtesFeld = new Koordinate(aktuelleKoordinate.getZeile(), aktuelleKoordinate.getSpalte() + 1);
-        Koordinate unteresFeld = new Koordinate(aktuelleKoordinate.getZeile() + 1, aktuelleKoordinate.getSpalte());
-        Koordinate oberesFeld = new Koordinate(aktuelleKoordinate.getZeile() - 1, aktuelleKoordinate.getSpalte());
-
-        int zufallsFeld = ThreadLocalRandom.current().nextInt(1, 5);
-        switch (zufallsFeld) {
-            case 1:
-                if (ueberpruefeFeld(linkesFeld))
-                    return linkesFeld;
-                break;
-            case 2:
-                if (ueberpruefeFeld(rechtesFeld))
-                    return rechtesFeld;
-                break;
-            case 3:
-                if (ueberpruefeFeld(unteresFeld))
-                    return unteresFeld;
-                break;
-            case 4:
-                if (ueberpruefeFeld(oberesFeld))
-                    return oberesFeld;
-        }
-
-        return null;
-    }
-
-    private boolean ueberpruefeFeld(Koordinate k) {
-
-        if (k.getSpalte() < seeBewertungen.length && k.getSpalte() >= 0) {
-            if (k.getZeile() < seeBewertungen.length && k.getZeile() >= 0)
-                return true;
-        }
-
-        return false;
-    }
-
-    private Koordinate sucheBestesFeld(Koordinate aktuelleKoordinate) {
-
-        double besteBewertung = -Double.MAX_VALUE;
-        Koordinate besteKoordinate = null;
-        Koordinate linkesFeld = new Koordinate(aktuelleKoordinate.getZeile(), aktuelleKoordinate.getSpalte() - 1);
-        Koordinate rechtesFeld = new Koordinate(aktuelleKoordinate.getZeile(), aktuelleKoordinate.getSpalte() + 1);
-        Koordinate unteresFeld = new Koordinate(aktuelleKoordinate.getZeile() + 1, aktuelleKoordinate.getSpalte());
-        Koordinate oberesFeld = new Koordinate(aktuelleKoordinate.getZeile() - 1, aktuelleKoordinate.getSpalte());
-
-        if (linkesFeld.getSpalte() >= 0 && seeBewertungen[linkesFeld.getZeile()][linkesFeld.getSpalte()] >= besteBewertung) {
-            besteKoordinate = linkesFeld;
-            besteBewertung = seeBewertungen[linkesFeld.getZeile()][linkesFeld.getSpalte()];
-        }
-
-        if (rechtesFeld.getSpalte() < seeBewertungen.length && seeBewertungen[rechtesFeld.getZeile()][rechtesFeld.getSpalte()] >= besteBewertung) {
-            besteBewertung = seeBewertungen[rechtesFeld.getZeile()][rechtesFeld.getSpalte()];
-            besteKoordinate = rechtesFeld;
-        }
-
-        if (unteresFeld.getZeile() < seeBewertungen.length && seeBewertungen[unteresFeld.getZeile()][unteresFeld.getSpalte()] >= besteBewertung) {
-            besteBewertung = seeBewertungen[unteresFeld.getZeile()][unteresFeld.getSpalte()];
-            besteKoordinate = unteresFeld;
-        }
-
-        if (oberesFeld.getZeile() >= 0 && seeBewertungen[oberesFeld.getZeile()][oberesFeld.getSpalte()] >= besteBewertung) {
-            besteBewertung = seeBewertungen[oberesFeld.getZeile()][oberesFeld.getSpalte()];
-            besteKoordinate = oberesFeld;
-        }
-
-        return besteKoordinate;
-    }
-
-    @Override
-    public boolean starteUeberquerung(See see, boolean stateValue, boolean neuronalesNetz, boolean onPolicy) {
-
-        this.stateValue = stateValue;
-        this.neuralesNetz = neuronalesNetz;
-        this.onPolicy = onPolicy;
-
-        aktuelleSpielerPosition = see.spielerPosition();
-        aktuellerSee = see;
-
-        //Aufgabe a
-        if (stateValue && !neuronalesNetz) {
-
-
-            if (onPolicy) {
-                //On-Policy
-                seeBewertungen = ladeArray(see,"ONPOLICY");
-                int i = 0;
-            } else {
-                //Off-Policy
-                seeBewertungen = ladeArray(see,"OFFPOLICY");
-            }
-
-        }
-        //Aufgabe b
-        else if (stateValue && neuronalesNetz) {
-
-            multiLayerPerceptron = (MultiLayerPerceptron) MultiLayerPerceptron.createFromFile("gespeicherteNetze/" + see.getId() + ".nnet");
-
-        }
-
-        return false;
-    }
-
-    @Override
-    public Richtung naechsterSchritt(Zustand ausgangszustand) {
-
-        if (stateValue && !neuralesNetz) {
-
-            Koordinate bestesFeld = sucheBestesFeld(aktuelleSpielerPosition);
-
-            if (bestesFeld.getZeile() < aktuelleSpielerPosition.getZeile())
-                return Richtung.HOCH;
-            else if (bestesFeld.getZeile() > aktuelleSpielerPosition.getZeile())
-                return Richtung.RUNTER;
-            else if (bestesFeld.getSpalte() > aktuelleSpielerPosition.getSpalte())
-                return Richtung.RECHTS;
-            else if (bestesFeld.getSpalte() < aktuelleSpielerPosition.getSpalte())
-                return Richtung.LINKS;
-
-        } else if (stateValue && neuralesNetz) {
-
-            Koordinate bestesFeld = berechneMaxNachfolgerNN(aktuelleSpielerPosition);
-
-            if (bestesFeld.getZeile() < aktuelleSpielerPosition.getZeile())
-                return Richtung.HOCH;
-            else if (bestesFeld.getZeile() > aktuelleSpielerPosition.getZeile())
-                return Richtung.RUNTER;
-            else if (bestesFeld.getSpalte() > aktuelleSpielerPosition.getSpalte())
-                return Richtung.RECHTS;
-            else if (bestesFeld.getSpalte() < aktuelleSpielerPosition.getSpalte())
-                return Richtung.LINKS;
-
-        }
-
-        return null;
-    }
-
-    @Override
-    public void versuchZuende(Zustand endzustand) {
-        System.out.println("Schade");
     }
 }
