@@ -360,6 +360,7 @@ public class Pfadfinder implements IPfadfinder {
                     break;
                 } else if (naechsterZustand == Zustand.UWasser || naechsterZustand == Zustand.Wasser) {
                     qTable[aktuelleSpielerPosition.getZeile()][aktuelleSpielerPosition.getSpalte()][aktion] = rewardWasser;
+                    break;
                 } else {
 
                     double maxBewertung = -Double.MAX_VALUE;
