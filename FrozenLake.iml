@@ -8,6 +8,6 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="FrozenLakeClasses" level="project" />
-    <orderEntry type="library" name="com.github.neuroph:neuroph-core:2.98" level="project" />
+    <orderEntry type="library" name="Neuroph" level="project" />
   </component>
 </module>
