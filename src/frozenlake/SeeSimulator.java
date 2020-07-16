@@ -9,30 +9,33 @@ public class SeeSimulator {
         try {
 
 
-            See testsee = new See("Testsee", 6, new Koordinate(0, 0), new Koordinate(5, 5));
-            See offPolicySee = new See("offPolicySee", 6, new Koordinate(0,0), new Koordinate(5,5));
+            See stateValueOnPolicySee = new See("stateValueOnPolicySee", 6, new Koordinate(0, 0), new Koordinate(5, 5));
+            See stateValueOffPolicySee = new See("stateValueOffPolicySee", 6, new Koordinate(0,0), new Koordinate(5,5));
             See neuronalesNetzSee = new See("NeuronalesNetzSee", 6, new Koordinate(0,0), new Koordinate(5,5));
-            testsee.wegErzeugen();
-            testsee.speichereSee("testsee");
-            offPolicySee.wegErzeugen();
+            See qLearningSee = new See("qLearningSee",6,new Koordinate(0,0), new Koordinate(5,5));
+
+            stateValueOnPolicySee.wegErzeugen();
+            stateValueOffPolicySee.wegErzeugen();
             neuronalesNetzSee.wegErzeugen();
-            neuronalesNetzSee.speichereSee("NNSEE");
+            qLearningSee.wegErzeugen();
 
-            Pfadfinder test = new Pfadfinder();
-            test.lerneSee(testsee, false, false, true);
-            test.lerneSee(offPolicySee,true,false,false);
-            test.lerneSee(neuronalesNetzSee,true,true,true);
+            Pfadfinder pfadfinder_enheth = new Pfadfinder();
 
-            test.starteUeberquerung(testsee, false,false,true);
-            testsee.anzeigen();
+            pfadfinder_enheth.lerneSee(stateValueOnPolicySee, true, false, true);
+            pfadfinder_enheth.lerneSee(stateValueOffPolicySee,true,false,false);
+            pfadfinder_enheth.lerneSee(neuronalesNetzSee,true,true,true);
+            pfadfinder_enheth.lerneSee(qLearningSee,false,false,false);
+
+            pfadfinder_enheth.starteUeberquerung(stateValueOnPolicySee, true,false,true);
+            stateValueOnPolicySee.anzeigen();
 
             Zustand naechsterZustand = Zustand.Start;
             do {
-                Richtung r = test.naechsterSchritt(naechsterZustand);
+                Richtung r = pfadfinder_enheth.naechsterSchritt(naechsterZustand);
                 System.out.println("Gehe " + r);
-                naechsterZustand = testsee.geheNach(r);
+                naechsterZustand = stateValueOnPolicySee.geheNach(r);
                 anzahlSchritte++;
-                testsee.anzeigen();
+                stateValueOnPolicySee.anzeigen();
             } while (!((naechsterZustand == Zustand.Ziel) || (naechsterZustand == Zustand.Wasser)));
 
             if (naechsterZustand == Zustand.Ziel) {
@@ -43,17 +46,17 @@ public class SeeSimulator {
 
             System.out.println("--------------------------");
 
-            test.starteUeberquerung(offPolicySee, true,false,false);
-            offPolicySee.anzeigen();
+            pfadfinder_enheth.starteUeberquerung(stateValueOffPolicySee, true,false,false);
+            stateValueOffPolicySee.anzeigen();
 
             anzahlSchritte = 0;
             naechsterZustand = Zustand.Start;
             do {
-                Richtung r = test.naechsterSchritt(naechsterZustand);
+                Richtung r = pfadfinder_enheth.naechsterSchritt(naechsterZustand);
                 System.out.println("Gehe " + r);
-                naechsterZustand = offPolicySee.geheNach(r);
+                naechsterZustand = stateValueOffPolicySee.geheNach(r);
                 anzahlSchritte++;
-                offPolicySee.anzeigen();
+                stateValueOffPolicySee.anzeigen();
             } while (!((naechsterZustand == Zustand.Ziel) || (naechsterZustand == Zustand.Wasser)));
 
             if (naechsterZustand == Zustand.Ziel) {
@@ -64,17 +67,38 @@ public class SeeSimulator {
 
             System.out.println("--------------------------");
 
-            test.starteUeberquerung(neuronalesNetzSee, true,true,true);
+            pfadfinder_enheth.starteUeberquerung(neuronalesNetzSee, true,true,true);
             neuronalesNetzSee.anzeigen();
 
             anzahlSchritte = 0;
             naechsterZustand = Zustand.Start;
             do {
-                Richtung r = test.naechsterSchritt(naechsterZustand);
+                Richtung r = pfadfinder_enheth.naechsterSchritt(naechsterZustand);
                 System.out.println("Gehe " + r);
                 naechsterZustand = neuronalesNetzSee.geheNach(r);
                 anzahlSchritte++;
                 neuronalesNetzSee.anzeigen();
+            } while (!((naechsterZustand == Zustand.Ziel) || (naechsterZustand == Zustand.Wasser)));
+
+            if (naechsterZustand == Zustand.Ziel) {
+                System.out.println("Sie haben Ihr Ziel erreicht! Anzahl Schritte: " + anzahlSchritte);
+            } else {
+                System.out.println("Sie sind im Wasser gelandet. Anzahl Schritte bis dahin: " + anzahlSchritte);
+            }
+
+            System.out.println("--------------------------");
+
+            pfadfinder_enheth.starteUeberquerung(qLearningSee, false,false,false);
+            qLearningSee.anzeigen();
+
+            anzahlSchritte = 0;
+            naechsterZustand = Zustand.Start;
+            do {
+                Richtung r = pfadfinder_enheth.naechsterSchritt(naechsterZustand);
+                System.out.println("Gehe " + r);
+                naechsterZustand = qLearningSee.geheNach(r);
+                anzahlSchritte++;
+                qLearningSee.anzeigen();
             } while (!((naechsterZustand == Zustand.Ziel) || (naechsterZustand == Zustand.Wasser)));
 
             if (naechsterZustand == Zustand.Ziel) {
